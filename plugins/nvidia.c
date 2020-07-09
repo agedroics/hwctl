@@ -11,19 +11,19 @@ struct dev_data {
     char *uuid;
 };
 
-char *get_name(struct dev *dev) {
+static char *get_name(struct hwctl_dev *dev) {
     return ((struct dev_data*) dev->data)->name;
 }
 
-char *get_desc(struct dev *dev) {
+static char *get_desc(struct hwctl_dev *dev) {
     return ((struct dev_data*) dev->data)->desc;
 }
 
-char *get_uuid(struct dev *dev) {
+static char *get_uuid(struct hwctl_dev *dev) {
     return ((struct dev_data*) dev->data)->uuid;
 }
 
-void destroy_data(void *data) {
+static void destroy_data(void *data) {
     struct dev_data *dev_data = data;
     free(dev_data->name);
     free(dev_data->desc);
@@ -31,13 +31,13 @@ void destroy_data(void *data) {
     free(dev_data);
 }
 
-void nvidia_dev_init(struct dev *dev) {
+static void nvidia_dev_init(struct hwctl_dev *dev) {
     dev->destroy_data = &destroy_data;
     dev->get_name = &get_name;
     dev->get_desc = &get_desc;
 }
 
-float read_temp(struct dev *dev) {
+static float read_temp(struct hwctl_dev *dev) {
     nvmlDevice_t nvml_dev;
     nvmlReturn_t result = nvmlDeviceGetHandleByUUID(get_uuid(dev), &nvml_dev);
     if (result != NVML_SUCCESS) {
@@ -54,8 +54,8 @@ float read_temp(struct dev *dev) {
     return (float) temp;
 }
 
-void init_dev_core(struct dev *core, struct dev *parent) {
-    dev_init(core);
+static void init_dev_core(struct hwctl_dev *core, struct hwctl_dev *parent) {
+    hwctl_dev_init(core);
     nvidia_dev_init(core);
     
     struct dev_data *dev_data = malloc(sizeof(struct dev_data));
@@ -66,15 +66,15 @@ void init_dev_core(struct dev *core, struct dev *parent) {
     dev_data->desc = malloc(28);
     memcpy(dev_data->desc, "GPU core temperature sensor", 28);
 
-    dev_data->uuid = str_copy(get_uuid(parent));
+    dev_data->uuid = str_make_copy(get_uuid(parent));
 
     core->data = dev_data;
 
-    core->temp_sen = malloc(sizeof(struct temp_sen));
+    core->temp_sen = malloc(sizeof(struct hwctl_temp_sen));
     core->temp_sen->read_temp = &read_temp;
 }
 
-int32_t read_fan_duty(struct dev *dev) {
+static int32_t read_fan_duty(struct hwctl_dev *dev) {
     nvmlDevice_t nvml_dev;
     nvmlReturn_t result = nvmlDeviceGetHandleByUUID(get_uuid(dev), &nvml_dev);
     if (result != NVML_SUCCESS) {
@@ -91,8 +91,8 @@ int32_t read_fan_duty(struct dev *dev) {
     return duty;
 }
 
-void init_dev_fan(struct dev *fan, struct dev *parent) {
-    dev_init(fan);
+static void init_dev_fan(struct hwctl_dev *fan, struct hwctl_dev *parent) {
+    hwctl_dev_init(fan);
     nvidia_dev_init(fan);
     
     struct dev_data *dev_data = malloc(sizeof(struct dev_data));
@@ -103,16 +103,16 @@ void init_dev_fan(struct dev *fan, struct dev *parent) {
     dev_data->desc = malloc(4);
     memcpy(dev_data->desc, "Fan", 4);
 
-    dev_data->uuid = str_copy(get_uuid(parent));
+    dev_data->uuid = str_make_copy(get_uuid(parent));
 
     fan->data = dev_data;
 
-    fan->speed_sen = malloc(sizeof(struct speed_sen));
+    fan->speed_sen = malloc(sizeof(struct hwctl_speed_sen));
     fan->speed_sen->read_duty = &read_fan_duty;
     fan->speed_sen->read_speed = NULL;
 }
 
-void det_devs(struct vec *devs) {
+static void det_devs(struct vec *devs) {
     unsigned dev_count;
     nvmlReturn_t result = nvmlDeviceGetCount(&dev_count);
     if (result != NVML_SUCCESS) {
@@ -148,36 +148,36 @@ void det_devs(struct vec *devs) {
         dev_data->uuid = malloc(uuid_len + 1);
         memcpy(dev_data->uuid, uuid, uuid_len + 1);
 
-        dev_data->name = str_copy(dev_data->uuid);
+        dev_data->name = str_make_copy(dev_data->uuid);
 
         size_t name_len = strlen(name);
         dev_data->desc = malloc(name_len + 1);
         memcpy(dev_data->desc, name, name_len + 1);
 
-        struct dev *dev = vec_push_back(devs);
-        dev_init(dev);
+        struct hwctl_dev *dev = vec_push_back(devs);
+        hwctl_dev_init(dev);
         nvidia_dev_init(dev);
         dev->data = dev_data;
 
-        init_dev_core(vec_push_back(dev->children), dev);
-        init_dev_fan(vec_push_back(dev->children), dev);
+        init_dev_core(vec_push_back(dev->subdevs), dev);
+        init_dev_fan(vec_push_back(dev->subdevs), dev);
     }
 }
 
-void init_plugin(void) {
+void hwctl_init_plugin(void) {
     nvmlReturn_t result = nvmlInit();
     if (result != NVML_SUCCESS) {
         fprintf(stderr, "Failed to initialize NVML: %s\n", nvmlErrorString(result));
     }
 }
 
-void shutdown_plugin(void) {
+void hwctl_shutdown_plugin(void) {
     nvmlReturn_t result = nvmlShutdown();
     if (result != NVML_SUCCESS) {
         fprintf(stderr, "Failed to shutdown NVML: %s\n", nvmlErrorString(result));
     }
 }
 
-void init_dev_det(struct dev_det *dev_det) {
+void hwctl_init_dev_det(struct hwctl_dev_det *dev_det) {
     dev_det->det_devs = &det_devs;
 }

@@ -8,13 +8,13 @@
 #include <unistd.h>
 #endif
 
-void print_spaces(unsigned n) {
+static void print_spaces(unsigned n) {
     for (unsigned i = 0; i < n; ++i) {
         fputc(' ', stdout);
     }
 }
 
-void print_dev(struct dev *dev, unsigned depth) {
+static void print_dev(struct hwctl_dev *dev, unsigned depth) {
     fputc('\n', stdout);
     print_spaces(depth * 2);
     printf("Name: %s\n", dev->get_name(dev));
@@ -36,10 +36,9 @@ void print_dev(struct dev *dev, unsigned depth) {
     if (dev->speed_act) {
         dev->speed_act->write_duty(dev, 100);
     }
-    for (unsigned i = 0; i < vec_size(dev->children); ++i) {
-        struct dev *child = ((struct dev*) vec_data(dev->children)) + i;
-
-        print_dev(child, depth + 1);
+    for (unsigned i = 0; i < vec_size(dev->subdevs); ++i) {
+        struct hwctl_dev *subdev = ((struct hwctl_dev*) vec_data(dev->subdevs)) + i;
+        print_dev(subdev, depth + 1);
     }
 }
 
@@ -47,17 +46,15 @@ int main(void) {
     hwctl_load_plugins();
 
     struct vec *devs;
-    vec_init(&devs, sizeof(struct dev));
-    for (unsigned i = 0; i < vec_size(dev_dets); ++i) {
-        struct dev_det *dev_det = ((struct dev_det*) vec_data(dev_dets)) + i;
-
+    vec_init(&devs, sizeof(struct hwctl_dev));
+    for (unsigned i = 0; i < vec_size(hwctl_dev_dets); ++i) {
+        struct hwctl_dev_det *dev_det = ((struct hwctl_dev_det*) vec_data(hwctl_dev_dets)) + i;
         dev_det->det_devs(devs);
     }
 
     for (unsigned i = 0; i < 100; ++i) {
         for (unsigned j = 0; j < vec_size(devs); ++j) {
-            struct dev *dev = ((struct dev*) vec_data(devs)) + j;
-
+            struct hwctl_dev *dev = ((struct hwctl_dev*) vec_data(devs)) + j;
             print_dev(dev, 0);
         }
         #ifdef _WIN32
@@ -68,8 +65,8 @@ int main(void) {
     }
 
     for (unsigned i = 0; i < vec_size(devs); ++i) {
-        struct dev *dev = ((struct dev*) vec_data(devs)) + i;
-        dev_destroy(dev);
+        struct hwctl_dev *dev = ((struct hwctl_dev*) vec_data(devs)) + i;
+        hwctl_dev_destroy(dev);
     }
 
     vec_destroy(devs);

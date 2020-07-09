@@ -29,7 +29,7 @@ size_t vec_size(struct vec *vec) {
 
 void *vec_push_back(struct vec *vec) {
     if (vec->size == vec->cap) {
-        vec->cap <<= 1;
+        vec->cap <<= 1u;
         vec->data = realloc(vec->data, vec->cap * vec->item_size);
     }
 

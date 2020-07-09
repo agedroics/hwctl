@@ -1,83 +1,67 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include <dirent.h>
 #include <dl_util.h>
+#include <fs_util.h>
 #include <str_util.h>
 #include <hwctl/device.h>
 #include <hwctl/loader.h>
 
-#ifdef _WIN32
-#define PATH_SEP L"\\"
-#else
-#define PATH_SEP "/"
-#endif
-
-struct vec *dev_dets;
+struct vec *hwctl_dev_dets;
 
 static struct vec *plugins;
 
 typedef void (*init_shutdown_t)(void);
 
-typedef void (*init_dev_det_t)(struct dev_det*);
+typedef void (*init_dev_det_t)(struct hwctl_dev_det*);
 
 void hwctl_load_plugins(void) {
-    vec_init(&dev_dets, sizeof(struct dev_det));
+    vec_init(&hwctl_dev_dets, sizeof(struct hwctl_dev_det));
 
-    vec_init(&plugins, sizeof(DL_T));
+    vec_init(&plugins, sizeof(void*));
 
-    PCHAR *plugin_path;
-
-    #ifdef _WIN32
+    path_char *plugin_path;
     {
-        wchar_t *temp = malloc((MAX_PATH) * sizeof(wchar_t));
-        GetModuleFileNameW(NULL, temp, MAX_PATH);
-        wchar_t *slash = wcsrchr(temp, L'\\');
-        if (slash) {
-            *slash = 0;
-        }
-        slash = wcsrchr(temp, L'\\');
-        if (slash) {
-            *slash = 0;
-        }
+        path_char *temp = fs_get_ex_path();
+        fs_path_remove_file(temp);
+        fs_path_remove_file(temp);
+#ifdef WIN32
         plugin_path = wstr_concat(2, temp, L"\\lib\\hwctl");
+#else
+        plugin_path = str_concat(2, temp, "/lib/hwctl");
+#endif
         free(temp);
     }
-    #else
-    plugin_path = "/usr/local/lib/hwctl";
-    #endif
 
-    #ifdef WIN32
-    _WDIR *dir;
-    struct _wdirent *ent;
-    if ((dir = _wopendir(plugin_path)) != NULL) {
-        while ((ent = _wreaddir(dir)) != NULL) {
+    FS_DIR *dir;
+    fs_dirent *ent;
+    if ((dir = fs_opendir(plugin_path)) != NULL) {
+        while ((ent = fs_readdir(dir)) != NULL) {
+#ifdef _WIN32
             wchar_t *dot = wcsrchr(ent->d_name, L'.');
             if (dot && !wcscmp(dot, DL_EXT)) {
-                wchar_t *full_path = wstr_concat(3, plugin_path, PATH_SEP, ent->d_name);
-    #else
-    DIR *dir;
-    struct dirent *ent;
-    if ((dir = opendir(plugin_path)) != NULL) {
-        while ((ent = readdir(dir)) != NULL) {
+                wchar_t *full_path = wstr_concat(3, plugin_path, PATH_SEP_STR, ent->d_name);
+#else
             char *dot = strrchr(ent->d_name, '.');
             if (dot && !strcmp(dot, DL_EXT)) {
-                char *full_path = str_concat(3, plugin_path, PATH_SEP, ent->d_name);
-    #endif
-                DL_T plugin = dl_open(full_path);
+                char *full_path = str_concat(3, plugin_path, PATH_SEP_STR, ent->d_name);
+#endif
+                void *plugin = dl_open(full_path);
                 free(full_path);
                 if (plugin) {
-                    init_shutdown_t init_plugin = (init_shutdown_t) dl_sym(plugin, "init_plugin");
+                    init_shutdown_t init_plugin = dl_get_sym(plugin, "hwctl_init_plugin");
                     if (init_plugin) {
                         init_plugin();
-                        DL_T *ptr = vec_push_back(plugins);
-                        *ptr = plugin;
-                        init_dev_det_t init_dev_det = (init_dev_det_t) dl_sym(plugin, "init_dev_det");
+                        void *ptr = vec_push_back(plugins);
+                        memcpy(ptr, plugin, sizeof(void*));
+                        init_dev_det_t init_dev_det = dl_get_sym(plugin, "hwctl_init_dev_det");
                         if (init_dev_det != NULL) {
-                            init_dev_det(vec_push_back(dev_dets));
-                            #ifdef WIN32
+                            init_dev_det(vec_push_back(hwctl_dev_dets));
+#ifdef WIN32
                             printf("%ls loaded\n", ent->d_name);
-                            #else
+#else
                             printf("%s loaded\n", ent->d_name);
-                            #endif
+#endif
                         }
                     } else {
                         dl_close(plugin);
@@ -85,25 +69,19 @@ void hwctl_load_plugins(void) {
                 }
             }
         }
-        #ifdef WIN32
-        _wclosedir(dir);
-        #else
-        closedir(dir);
-        #endif
+        fs_closedir(dir);
     }
 
-    #ifdef _WIN32
     free(plugin_path);
-    #endif
 }
 
 void hwctl_unload_plugins(void) {
-    vec_destroy(dev_dets);
+    vec_destroy(hwctl_dev_dets);
 
     for (unsigned i = 0; i < vec_size(plugins); ++i) {
-        DL_T plugin = ((DL_T*) vec_data(plugins))[i];
-        init_shutdown_t shutdown_plugin = (init_shutdown_t) dl_sym(plugin, "shutdown_plugin");
-        if (shutdown_plugin != NULL) {
+        void *plugin = ((void**) vec_data(plugins))[i];
+        init_shutdown_t shutdown_plugin = dl_get_sym(plugin, "hwctl_shutdown_plugin");
+        if (shutdown_plugin) {
             shutdown_plugin();
         }
         dl_close(plugin);

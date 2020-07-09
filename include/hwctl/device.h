@@ -1,41 +1,37 @@
-#ifndef HWCTL_DEVICE_H
-#define HWCTL_DEVICE_H
-
+#pragma once
 #include <stdint.h>
 #include <hwctl/vec.h>
 
-struct dev;
+struct hwctl_dev;
 
-struct temp_sen {
-    float (*read_temp)(struct dev*);
+struct hwctl_temp_sen {
+    float (*read_temp)(struct hwctl_dev*);
 };
 
-struct speed_sen {
-    int32_t (*read_duty)(struct dev*);
-    int32_t (*read_speed)(struct dev*);
+struct hwctl_speed_sen {
+    int32_t (*read_duty)(struct hwctl_dev*);
+    int32_t (*read_speed)(struct hwctl_dev*);
 };
 
-struct speed_act {
-    void (*write_duty)(struct dev*, int32_t);
+struct hwctl_speed_act {
+    void (*write_duty)(struct hwctl_dev*, int32_t);
 };
 
-struct dev {
+struct hwctl_dev {
     void *data;
     void (*destroy_data)(void*);
-    char* (*get_name)(struct dev*);
-    char* (*get_desc)(struct dev*);
-    struct temp_sen *temp_sen;
-    struct speed_sen *speed_sen;
-    struct speed_act *speed_act;
-    struct vec *children;
+    char* (*get_name)(struct hwctl_dev*);
+    char* (*get_desc)(struct hwctl_dev*);
+    struct hwctl_temp_sen *temp_sen;
+    struct hwctl_speed_sen *speed_sen;
+    struct hwctl_speed_act *speed_act;
+    struct vec *subdevs;
 };
 
-void dev_init(struct dev*);
+void hwctl_dev_init(struct hwctl_dev*);
 
-void dev_destroy(struct dev*);
+void hwctl_dev_destroy(struct hwctl_dev*);
 
-struct dev_det {
+struct hwctl_dev_det {
     void (*det_devs)(struct vec*);
 };
-
-#endif

@@ -13,6 +13,21 @@ target_include_directories(dl_util
         PUBLIC ${DL_UTIL_INCLUDES})
 
 
+set(FS_UTIL_SOURCES
+        ${PROJECT_SOURCE_DIR}/util/fs_util.c)
+
+set(FS_UTIL_HEADERS
+        ${PROJECT_SOURCE_DIR}/util/fs_util.h)
+
+set(FS_UTIL_INCLUDES
+        ${PROJECT_SOURCE_DIR}/util)
+
+add_library(fs_util STATIC ${FS_UTIL_SOURCES} ${FS_UTIL_HEADERS})
+
+target_include_directories(fs_util
+        PUBLIC ${FS_UTIL_INCLUDES})
+
+
 set(STR_UTIL_SOURCES
         ${PROJECT_SOURCE_DIR}/util/str_util.c)
 

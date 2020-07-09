@@ -3,12 +3,12 @@
 #include <string.h>
 #include <str_util.h>
 
-char *str_copy(char *src) {
-    return str_concat(1, src);
+char *str_make_copy(char *str) {
+    return str_concat(1, str);
 }
 
-wchar_t *wstr_copy(wchar_t *src) {
-    return wstr_concat(1, src);
+wchar_t *wstr_make_copy(wchar_t *str) {
+    return wstr_concat(1, str);
 }
 
 char *str_concat(size_t n, ...) {
@@ -26,9 +26,10 @@ char *str_concat(size_t n, ...) {
     for (unsigned i = 0; i < n; ++i) {
         char *arg = va_arg(args, char*);
         size_t arg_len = strlen(arg);
-        memcpy(str + len, arg, arg_len + 1);
+        memcpy(str + len, arg, arg_len);
         len += arg_len;
     }
+    str[len] = 0;
     va_end(args);
 
     return str;
@@ -43,16 +44,31 @@ wchar_t *wstr_concat(size_t n, ...) {
     }
     va_end(args);
 
-    wchar_t *str = malloc((len + 1) * sizeof(wchar_t));
+    wchar_t *wstr = malloc((len + 1) * sizeof(wchar_t));
     va_start(args, n);
     len = 0;
     for (unsigned i = 0; i < n; ++i) {
         wchar_t *arg = va_arg(args, wchar_t*);
         size_t arg_len = wcslen(arg);
-        memcpy(str + len, arg, (arg_len + 1) * sizeof(wchar_t));
+        memcpy(wstr + len, arg, arg_len * sizeof(wchar_t));
         len += arg_len;
     }
+    wstr[len] = 0;
     va_end(args);
 
+    return wstr;
+}
+
+wchar_t *str_to_wstr(char *str) {
+    size_t wchars = strlen(str) + 1;
+    wchar_t *wstr = malloc(wchars * sizeof(wchar_t));
+    mbstowcs(wstr, str, wchars);
+    return wstr;
+}
+
+char *wstr_to_str(wchar_t *wstr) {
+    size_t bytes = wcslen(wstr) * sizeof(wchar_t) + 1;
+    char *str = malloc(bytes);
+    wcstombs(str, wstr, bytes);
     return str;
 }

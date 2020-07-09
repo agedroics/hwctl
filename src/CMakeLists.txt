@@ -20,6 +20,7 @@ target_include_directories(hwctl
 
 target_link_libraries(hwctl
         PRIVATE dl_util
+        PRIVATE fs_util
         PRIVATE str_util)
 
 set_target_properties(hwctl

@@ -1,12 +1,8 @@
-#ifndef HWCTL_MODULE_H
-#define HWCTL_MODULE_H
-
+#pragma once
 #include <hwctl/device.h>
 
-void init_plugin(void);
+void hwctl_init_plugin(void);
 
-void shutdown_plugin(void);
+void hwctl_shutdown_plugin(void);
 
-void init_dev_det(struct dev_det*);
-
-#endif
+void hwctl_init_dev_det(struct hwctl_dev_det*);

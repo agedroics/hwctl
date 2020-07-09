@@ -1,25 +1,30 @@
 #include <dl_util.h>
+#ifdef _WIN32
+#include <libloaderapi.h>
+#else
+#include <dlfcn.h>
+#endif
 
-DL_T dl_open(PCHAR *filename) {
-    #ifdef _WIN32
-    return LoadLibraryW(filename);
-    #else
-    return dlopen(filename, RTLD_LOCAL);
-    #endif
+void *dl_open(path_char *path) {
+#ifdef _WIN32
+    return LoadLibraryW(path);
+#else
+    return dlopen(path, RTLD_LOCAL);
+#endif
 }
 
-void *dl_sym(DL_T dl, char *symbol) {
-    #ifdef _WIN32
-    return (void*) GetProcAddress(dl, symbol);
-    #else
-    return dlsym(dl, symbol);
-    #endif
+void *dl_get_sym(void *dl, char *name) {
+#ifdef _WIN32
+    return GetProcAddress(dl, name);
+#else
+    return dlsym(dl, name);
+#endif
 }
 
-void dl_close(DL_T dl) {
-    #ifdef _WIN32
+void dl_close(void *dl) {
+#ifdef _WIN32
     FreeLibrary(dl);
-    #else
+#else
     dlclose(dl);
-    #endif
+#endif
 }

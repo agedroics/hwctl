@@ -1,12 +1,14 @@
-#ifndef HWCTL_STR_UTIL_H
-#define HWCTL_STR_UTIL_H
+#pragma once
+#include <stddef.h>
 
-char *str_copy(char*);
+char *str_make_copy(char*);
 
-wchar_t *wstr_copy(wchar_t*);
+wchar_t *wstr_make_copy(wchar_t*);
 
 char *str_concat(size_t n, ...);
 
 wchar_t *wstr_concat(size_t n, ...);
 
-#endif
+wchar_t *str_to_wstr(char*);
+
+char *wstr_to_str(wchar_t*);

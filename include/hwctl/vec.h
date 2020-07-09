@@ -1,6 +1,4 @@
-#ifndef HWCTL_VEC_H
-#define HWCTL_VEC_H
-
+#pragma once
 #include <stddef.h>
 
 struct vec;
@@ -14,5 +12,3 @@ size_t vec_size(struct vec*);
 void *vec_push_back(struct vec*);
 
 void *vec_data(struct vec*);
-
-#endif
