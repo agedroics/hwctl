@@ -20,7 +20,7 @@ enum dev_type {
 
 struct dev_data {
     enum dev_type type;
-    char *name;
+    char *id;
     char *desc;
     libusb_device_handle *handle;
     unsigned char report[64];
@@ -33,15 +33,30 @@ static void dev_data_init(struct dev_data *dev_data) {
     dev_data->report_time = 0;
 }
 
+static void dev_data_destroy(void *data) {
+    struct dev_data *dev_data = data;
+    free(dev_data->id);
+    free(dev_data->desc);
+    libusb_close(dev_data->handle);
+    free(dev_data);
+}
+
 struct subdev_data {
     enum dev_type type;
-    char *name;
+    char *id;
     char *desc;
     struct hwctl_dev *parent;
 };
 
-void subdev_data_init(struct subdev_data *subdev_data) {
+static void subdev_data_init(struct subdev_data *subdev_data) {
     subdev_data->type = SUBDEV;
+}
+
+static void subdev_data_destroy(void *data) {
+    struct subdev_data *subdev_data = data;
+    free(subdev_data->id);
+    free(subdev_data->desc);
+    free(subdev_data);
 }
 
 void hwctl_init_plugin(void) {
@@ -51,10 +66,7 @@ void hwctl_init_plugin(void) {
         return;
     }
 
-    result = libusb_set_option(ctx, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_WARNING);
-    if (result) {
-        fprintf(stderr, "Failed to set log level for libusb-1.0: %s\n", libusb_strerror(result));
-    }
+    libusb_set_debug(ctx, LIBUSB_LOG_LEVEL_WARNING);
 }
 
 void hwctl_shutdown_plugin(void) {
@@ -63,8 +75,8 @@ void hwctl_shutdown_plugin(void) {
     }
 }
 
-static char *get_name(struct hwctl_dev *dev) {
-    return ((struct dev_data*) dev->data)->name;
+static char *get_id(struct hwctl_dev *dev) {
+    return ((struct dev_data*) dev->data)->id;
 }
 
 static char *get_desc(struct hwctl_dev *dev) {
@@ -84,22 +96,18 @@ static struct hwctl_dev *get_root(struct hwctl_dev *dev) {
 }
 
 static libusb_device_handle *get_handle(struct hwctl_dev *dev) {
-    if (get_type(dev->data) == DEV) {
-        return ((struct dev_data*) dev->data)->handle;
-    } else {
-        return get_handle(((struct subdev_data*) dev->data)->parent);
-    }
+    return ((struct dev_data*) get_root(dev)->data)->handle;
 }
 
 static unsigned char *get_report(struct hwctl_dev *dev) {
-    dev = get_root(dev);
-    struct dev_data *dev_data = dev->data;
+    struct hwctl_dev *root = get_root(dev);
+    struct dev_data *dev_data = root->data;
     time_t curtime = time(NULL);
     if (difftime(curtime, dev_data->report_time) >= 1) {
         int transferred;
         int result = libusb_interrupt_transfer(dev_data->handle, 0x81, dev_data->report, 64, &transferred, 1000);
         if (result) {
-            fprintf(stderr, "Failed to read from USB device %s: %s\n", get_name(dev), libusb_strerror(result));
+            fprintf(stderr, "Failed to read from USB device %s: %s\n", get_id(root), libusb_strerror(result));
         } else {
             dev_data->report_time = curtime;
         }
@@ -107,43 +115,29 @@ static unsigned char *get_report(struct hwctl_dev *dev) {
     return dev_data->report;
 }
 
-static void destroy_data(void *data) {
-    if (get_type(data) == DEV) {
-        struct dev_data *dev_data = data;
-        free(dev_data->name);
-        free(dev_data->desc);
-        libusb_close(dev_data->handle);
-    } else {
-        struct subdev_data *subdev_data = data;
-        free(subdev_data->name);
-        free(subdev_data->desc);
-    }
-    
-    free(data);
-}
-
-static void basic_kraken_dev_init(struct hwctl_dev *dev) {
+static void base_dev_init(struct hwctl_dev *dev) {
     hwctl_dev_init(dev);
-    dev->destroy_data = &destroy_data;
-    dev->get_name = &get_name;
+    dev->get_id = &get_id;
     dev->get_desc = &get_desc;
 }
 
 static void kraken_dev_init(struct hwctl_dev *dev, libusb_device_handle *handle) {
-    basic_kraken_dev_init(dev);
+    base_dev_init(dev);
+    dev->destroy_data = &dev_data_destroy;
     struct dev_data *dev_data = malloc(sizeof(struct dev_data));
     dev_data_init(dev_data);
-    dev_data->name = usb_create_name(handle);
+    dev_data->id = usb_create_id(handle);
     dev_data->desc = usb_create_desc(handle);
     dev_data->handle = handle;
     dev->data = dev_data;
 }
 
-static void kraken_subdev_init(struct hwctl_dev *dev, char *name, char *desc, struct hwctl_dev *parent) {
-    basic_kraken_dev_init(dev);
+static void subdev_init(struct hwctl_dev *dev, char *id, char *desc, struct hwctl_dev *parent) {
+    base_dev_init(dev);
+    dev->destroy_data = &subdev_data_destroy;
     struct subdev_data *subdev_data = malloc(sizeof(struct subdev_data));
     subdev_data_init(subdev_data);
-    subdev_data->name = str_make_copy(name);
+    subdev_data->id = str_make_copy(id);
     subdev_data->desc = str_make_copy(desc);
     subdev_data->parent = parent;
     dev->data = subdev_data;
@@ -155,7 +149,7 @@ static float read_liquid_temp(struct hwctl_dev *dev) {
 }
 
 static void init_dev_liquid(struct hwctl_dev *liquid, struct hwctl_dev *parent) {
-    kraken_subdev_init(liquid, "liquid", "Liquid temperature sensor", parent);
+    subdev_init(liquid, "liquid", "Liquid temperature sensor", parent);
     liquid->temp_sen = malloc(sizeof(struct hwctl_temp_sen));
     liquid->temp_sen->read_temp = &read_liquid_temp;
 }
@@ -171,7 +165,7 @@ static int32_t clamp(int32_t min, int32_t val, int32_t max) {
 
 static void write_duty(struct hwctl_dev *dev, uint8_t type, uint8_t duty) {
     unsigned char msg[65];
-    memset(msg, 0, 65);
+    memset(msg, 0, sizeof(msg));
     msg[0] = 0x02;
     msg[1] = 0x4d;
     msg[2] = type;
@@ -182,7 +176,7 @@ static void write_duty(struct hwctl_dev *dev, uint8_t type, uint8_t duty) {
     int transferred;
     int result = libusb_interrupt_transfer(dev_data->handle, 0x01, msg, sizeof(msg), &transferred, 1000);
     if (result) {
-        fprintf(stderr, "Failed to read from USB device %s: %s\n", get_name(dev), libusb_strerror(result));
+        fprintf(stderr, "Failed to write to USB device %s: %s\n", get_id(dev), libusb_strerror(result));
     }
 }
 
@@ -191,7 +185,7 @@ static void write_fan_duty(struct hwctl_dev *dev, int32_t duty) {
 }
 
 static void init_dev_fan(struct hwctl_dev *fan, struct hwctl_dev *parent) {
-    kraken_subdev_init(fan, "fan", "Fan", parent);
+    subdev_init(fan, "fan", "Fan", parent);
     
     fan->speed_sen = malloc(sizeof(struct hwctl_speed_sen));
     fan->speed_sen->read_duty = NULL;
@@ -211,7 +205,7 @@ static void write_pump_duty(struct hwctl_dev *dev, int32_t duty) {
 }
 
 static void init_dev_pump(struct hwctl_dev *pump, struct hwctl_dev *parent) {
-    kraken_subdev_init(pump, "pump", "Liquid pump", parent);
+    subdev_init(pump, "pump", "Liquid pump", parent);
     
     pump->speed_sen = malloc(sizeof(struct hwctl_speed_sen));
     pump->speed_sen->read_duty = NULL;

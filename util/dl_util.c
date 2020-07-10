@@ -1,6 +1,6 @@
 #include <dl_util.h>
 #ifdef _WIN32
-#include <libloaderapi.h>
+#include <windows.h>
 #else
 #include <dlfcn.h>
 #endif
@@ -9,7 +9,7 @@ void *dl_open(path_char *path) {
 #ifdef _WIN32
     return LoadLibraryW(path);
 #else
-    return dlopen(path, RTLD_LOCAL);
+    return dlopen(path, RTLD_LAZY | RTLD_LOCAL);
 #endif
 }
 

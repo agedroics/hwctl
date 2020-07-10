@@ -1,9 +1,15 @@
 #include <fs_util.h>
-#include <libloaderapi.h>
+#include <stdlib.h>
+#include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 path_char *fs_get_ex_path(void) {
 #ifdef _WIN32
-    size_t chars = MAX_PATH;
+    DWORD chars = MAX_PATH;
     wchar_t *path = malloc(chars * sizeof(wchar_t));
     for (;;) {
         DWORD n = GetModuleFileNameW(NULL, path, chars);

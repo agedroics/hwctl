@@ -23,7 +23,7 @@ void vec_destroy(struct vec *vec) {
     free(vec);
 }
 
-size_t vec_size(struct vec *vec) {
+size_t vec_size(const struct vec *vec) {
     return vec->size;
 }
 
@@ -37,6 +37,6 @@ void *vec_push_back(struct vec *vec) {
     return ((char*) vec->data) + (vec->size - 1) * vec->item_size;
 }
 
-void *vec_data(struct vec *vec) {
+void *vec_data(const struct vec *vec) {
     return vec->data;
 }

@@ -1,14 +1,15 @@
 #pragma once
 #include <stddef.h>
+#include <hwctl/export.h>
 
 struct vec;
 
-void vec_init(struct vec**, size_t item_size);
+HWCTL_EXPORT void vec_init(struct vec**, size_t item_size);
 
-void vec_destroy(struct vec*);
+HWCTL_EXPORT void vec_destroy(struct vec*);
 
-size_t vec_size(struct vec*);
+HWCTL_EXPORT size_t vec_size(const struct vec*);
 
-void *vec_push_back(struct vec*);
+HWCTL_EXPORT void *vec_push_back(struct vec*);
 
-void *vec_data(struct vec*);
+HWCTL_EXPORT void *vec_data(const struct vec*);

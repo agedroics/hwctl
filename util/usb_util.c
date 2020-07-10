@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <usb_util.h>
 
-char *usb_create_name(libusb_device_handle *handle) {
+char *usb_create_id(libusb_device_handle *handle) {
     libusb_device *dev = libusb_get_device(handle);
     
     uint8_t bus_num = libusb_get_bus_number(dev);
@@ -15,14 +15,14 @@ char *usb_create_name(libusb_device_handle *handle) {
         len += snprintf(NULL, 0, ".%u", port_nums[i]);
     }
     
-    char *name = malloc(len + 1);
+    char *id = malloc(len + 1);
     len = 0;
-    len += sprintf(name, "USB%u", bus_num);
+    len += sprintf(id, "USB%u", bus_num);
     for (int i = 0; i < depth; ++i) {
-        len += sprintf(name + len, ".%u", port_nums[i]);
+        len += sprintf(id + len, ".%u", port_nums[i]);
     }
     
-    return name;
+    return id;
 }
 
 char *usb_create_desc(libusb_device_handle *handle) {

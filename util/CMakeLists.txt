@@ -12,6 +12,12 @@ add_library(dl_util STATIC ${DL_UTIL_SOURCES} ${DL_UTIL_HEADERS})
 target_include_directories(dl_util
         PUBLIC ${DL_UTIL_INCLUDES})
 
+set_property(TARGET dl_util PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+if(NOT WIN32)
+    target_link_libraries(dl_util ${CMAKE_DL_LIBS})
+endif()
+
 
 set(FS_UTIL_SOURCES
         ${PROJECT_SOURCE_DIR}/util/fs_util.c)
@@ -27,6 +33,8 @@ add_library(fs_util STATIC ${FS_UTIL_SOURCES} ${FS_UTIL_HEADERS})
 target_include_directories(fs_util
         PUBLIC ${FS_UTIL_INCLUDES})
 
+set_property(TARGET fs_util PROPERTY POSITION_INDEPENDENT_CODE ON)
+
 
 set(STR_UTIL_SOURCES
         ${PROJECT_SOURCE_DIR}/util/str_util.c)
@@ -41,6 +49,8 @@ add_library(str_util STATIC ${STR_UTIL_SOURCES} ${STR_UTIL_HEADERS})
 
 target_include_directories(str_util
         PUBLIC ${STR_UTIL_INCLUDES})
+
+set_property(TARGET str_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 
 find_library(LIBUSB
@@ -60,6 +70,8 @@ if(NOT LIBUSB STREQUAL "LIBUSB-NOTFOUND")
 
     target_include_directories(usb_util
             PUBLIC ${USB_UTIL_INCLUDES})
+
+    set_property(TARGET usb_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     target_link_libraries(usb_util
             PRIVATE ${LIBUSB})

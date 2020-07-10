@@ -38,9 +38,9 @@ if(NOT LIBUSB STREQUAL "LIBUSB-NOTFOUND")
 endif()
 
 
-find_package(CUDAToolkit COMPONENTS nvml)
+find_package(CUDA)
 
-if(CUDAToolkit_FOUND)
+if(CUDA_FOUND)
     set(NVIDIA_SOURCES
             ${PROJECT_SOURCE_DIR}/plugins/nvidia.c)
 
@@ -49,12 +49,16 @@ if(CUDAToolkit_FOUND)
     target_include_directories(nvidia
             PRIVATE ${HWCTL_INCLUDES}
             PRIVATE ${STR_UTIL_INCLUDES}
-            PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+            PRIVATE ${CUDA_INCLUDE_DIRS})
+
+    find_library(NVML
+            NAMES nvml libnvml nvidia-ml libnvidia-ml
+            PATHS ${CUDA_TOOLKIT_ROOT_DIR}/lib ${CUDA_TOOLKIT_ROOT_DIR}/lib64 ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64)
 
     target_link_libraries(nvidia
             PRIVATE hwctl
             PRIVATE str_util
-            PRIVATE CUDA::nvml)
+            PRIVATE ${NVML})
 
     set_target_properties(nvidia
             PROPERTIES

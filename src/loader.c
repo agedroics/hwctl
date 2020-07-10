@@ -1,19 +1,23 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <dirent.h>
+#include <string.h>
 #include <dl_util.h>
 #include <fs_util.h>
 #include <str_util.h>
 #include <hwctl/device.h>
 #include <hwctl/loader.h>
 
-struct vec *hwctl_dev_dets;
+static struct vec *hwctl_dev_dets;
 
 static struct vec *plugins;
 
 typedef void (*init_shutdown_t)(void);
 
 typedef void (*init_dev_det_t)(struct hwctl_dev_det*);
+
+const struct vec *get_hwctl_dev_dets(void) {
+    return hwctl_dev_dets;
+}
 
 void hwctl_load_plugins(void) {
     vec_init(&hwctl_dev_dets, sizeof(struct hwctl_dev_det));

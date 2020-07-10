@@ -2,6 +2,9 @@
 #include <stdarg.h>
 #include <string.h>
 #include <str_util.h>
+#ifndef _WIN32
+#include <wchar.h>
+#endif
 
 char *str_make_copy(char *str) {
     return str_concat(1, str);

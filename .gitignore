@@ -1,3 +1,5 @@
+/include/hwctl/export.h
+
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles

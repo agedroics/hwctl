@@ -17,7 +17,7 @@ static void print_spaces(unsigned n) {
 static void print_dev(struct hwctl_dev *dev, unsigned depth) {
     fputc('\n', stdout);
     print_spaces(depth * 2);
-    printf("Name: %s\n", dev->get_name(dev));
+    printf("ID: %s\n", dev->get_id(dev));
     print_spaces(depth * 2);
     printf("Description: %s\n", dev->get_desc(dev));
     if (dev->temp_sen) {
@@ -47,8 +47,8 @@ int main(void) {
 
     struct vec *devs;
     vec_init(&devs, sizeof(struct hwctl_dev));
-    for (unsigned i = 0; i < vec_size(hwctl_dev_dets); ++i) {
-        struct hwctl_dev_det *dev_det = ((struct hwctl_dev_det*) vec_data(hwctl_dev_dets)) + i;
+    for (unsigned i = 0; i < vec_size(get_hwctl_dev_dets()); ++i) {
+        struct hwctl_dev_det *dev_det = ((struct hwctl_dev_det*) vec_data(get_hwctl_dev_dets())) + i;
         dev_det->det_devs(devs);
     }
 
