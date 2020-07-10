@@ -57,7 +57,7 @@ void hwctl_load_plugins(void) {
                     if (init_plugin) {
                         init_plugin();
                         void *ptr = vec_push_back(plugins);
-                        memcpy(ptr, plugin, sizeof(void*));
+                        memcpy(ptr, &plugin, sizeof(void*));
                         init_dev_det_t init_dev_det = dl_get_sym(plugin, "hwctl_init_dev_det");
                         if (init_dev_det != NULL) {
                             init_dev_det(vec_push_back(hwctl_dev_dets));
