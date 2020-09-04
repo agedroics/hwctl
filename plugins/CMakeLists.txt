@@ -1,7 +1,7 @@
-find_library(LIBUSB
-        NAMES usb usb-1.0 libusb libusb-1.0)
+find_library(HIDAPI
+        NAMES hidapi hidapi-libusb hidapi-hidraw libhidapi libhidapi-dev)
 
-if(NOT LIBUSB STREQUAL "LIBUSB-NOTFOUND")
+if(NOT HIDAPI STREQUAL "HIDAPI-NOTFOUND")
     set(KRAKEN_XX2_SOURCES
             ${PROJECT_SOURCE_DIR}/plugins/kraken_xx2.c)
 
@@ -10,13 +10,13 @@ if(NOT LIBUSB STREQUAL "LIBUSB-NOTFOUND")
     target_include_directories(kraken_xx2
             PRIVATE ${HWCTL_INCLUDES}
             PRIVATE ${STR_UTIL_INCLUDES}
-            PRIVATE ${USB_UTIL_INCLUDES})
+            PRIVATE ${HID_UTIL_INCLUDES})
 
     target_link_libraries(kraken_xx2
             PRIVATE hwctl
             PRIVATE str_util
-            PRIVATE usb_util
-            PRIVATE ${LIBUSB})
+            PRIVATE hid_util
+            PRIVATE ${HIDAPI})
 
     set_target_properties(kraken_xx2
             PROPERTIES
@@ -27,12 +27,12 @@ if(NOT LIBUSB STREQUAL "LIBUSB-NOTFOUND")
             COMPONENT kraken_xx2_plugin)
 
     if(WIN32)
-        find_file(LIBUSB_RUNTIME libusb-1.0.dll)
+        find_file(HIDAPI_RUNTIME hidapi.dll)
 
-        if(NOT LIBUSB_RUNTIME STREQUAL "LIBUSB_RUNTIME-NOTFOUND")
-            install(FILES ${LIBUSB_RUNTIME}
+        if(NOT HIDAPI_RUNTIME STREQUAL "HIDAPI_RUNTIME-NOTFOUND")
+            install(FILES ${HIDAPI_RUNTIME}
                     DESTINATION bin
-                    COMPONENT libusb_library)
+                    COMPONENT hidapi_library)
         endif()
     endif()
 endif()

@@ -11,7 +11,7 @@ static struct vec *hwctl_dev_dets;
 
 static struct vec *plugins;
 
-typedef void (*init_shutdown_t)(void);
+typedef int (*init_shutdown_t)(void);
 
 typedef void (*init_dev_det_t)(struct hwctl_dev_det*);
 
@@ -55,17 +55,25 @@ void hwctl_load_plugins(void) {
                 if (plugin) {
                     init_shutdown_t init_plugin = dl_get_sym(plugin, "hwctl_init_plugin");
                     if (init_plugin) {
-                        init_plugin();
+                        int result = init_plugin();
+                        if (!result) {
+#ifdef WIN32
+                            printf("%ls init\n", ent->d_name);
+#else
+                            printf("%s init\n", ent->d_name);
+#endif
+                        } else {
+#ifdef WIN32
+                            fprintf(stderr, "%ls failed to init\n", ent->d_name);
+#else
+                            fprintf(stderr, "%s failed to init\n", ent->d_name);
+#endif
+                        }
                         void *ptr = vec_push_back(plugins);
                         memcpy(ptr, &plugin, sizeof(void*));
                         init_dev_det_t init_dev_det = dl_get_sym(plugin, "hwctl_init_dev_det");
                         if (init_dev_det != NULL) {
                             init_dev_det(vec_push_back(hwctl_dev_dets));
-#ifdef WIN32
-                            printf("%ls loaded\n", ent->d_name);
-#else
-                            printf("%s loaded\n", ent->d_name);
-#endif
                         }
                     } else {
                         dl_close(plugin);

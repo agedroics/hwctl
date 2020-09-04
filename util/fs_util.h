@@ -1,10 +1,11 @@
 #pragma once
 #include <defs.h>
-#include <dirent.h>
 #ifdef _WIN32
+#include <dirent_win32.h>
 #define FS_DIR _WDIR
 #define fs_dirent struct _wdirent
 #else
+#include <dirent.h>
 #define FS_DIR DIR
 #define fs_dirent struct dirent
 #endif

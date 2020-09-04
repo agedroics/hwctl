@@ -6,8 +6,8 @@
 #define PLUGIN_EXPORT
 #endif
 
-PLUGIN_EXPORT void hwctl_init_plugin(void);
+PLUGIN_EXPORT int hwctl_init_plugin(void);
 
-PLUGIN_EXPORT void hwctl_shutdown_plugin(void);
+PLUGIN_EXPORT int hwctl_shutdown_plugin(void);
 
 PLUGIN_EXPORT void hwctl_init_dev_det(struct hwctl_dev_det*);

@@ -181,18 +181,20 @@ static void det_devs(struct vec *devs) {
     }
 }
 
-void hwctl_init_plugin(void) {
+int hwctl_init_plugin(void) {
     nvmlReturn_t result = nvmlInit();
     if (result != NVML_SUCCESS) {
         fprintf(stderr, "Failed to initialize NVML: %s\n", nvmlErrorString(result));
     }
+    return result != NVML_SUCCESS;
 }
 
-void hwctl_shutdown_plugin(void) {
+int hwctl_shutdown_plugin(void) {
     nvmlReturn_t result = nvmlShutdown();
     if (result != NVML_SUCCESS) {
         fprintf(stderr, "Failed to shutdown NVML: %s\n", nvmlErrorString(result));
     }
+    return result != NVML_SUCCESS;
 }
 
 void hwctl_init_dev_det(struct hwctl_dev_det *dev_det) {

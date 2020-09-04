@@ -53,36 +53,37 @@ target_include_directories(str_util
 set_property(TARGET str_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 
-find_library(LIBUSB
-        NAMES usb usb-1.0 libusb libusb-1.0)
+find_library(HIDAPI
+        NAMES hidapi hidapi-libusb hidapi-hidraw libhidapi libhidapi-dev)
 
-if(NOT LIBUSB STREQUAL "LIBUSB-NOTFOUND")
-    set(USB_UTIL_SOURCES
-            ${PROJECT_SOURCE_DIR}/util/usb_util.c)
+if(NOT HIADPI STREQUAL "HIDAPI-NOTFOUND")
+    set(HID_UTIL_SOURCES
+            ${PROJECT_SOURCE_DIR}/util/hid_util.c)
 
-    set(USB_UTIL_HEADERS
-            ${PROJECT_SOURCE_DIR}/util/usb_util.h)
+    set(HID_UTIL_HEADERS
+            ${PROJECT_SOURCE_DIR}/util/hid_util.h)
 
-    set(USB_UTIL_INCLUDES
+    set(HID_UTIL_INCLUDES
             ${PROJECT_SOURCE_DIR}/util)
 
-    add_library(usb_util STATIC ${USB_UTIL_SOURCES} ${USB_UTIL_HEADERS})
+    add_library(hid_util STATIC ${HID_UTIL_SOURCES} ${HID_UTIL_HEADERS})
 
-    target_include_directories(usb_util
-            PUBLIC ${USB_UTIL_INCLUDES})
+    target_include_directories(hid_util
+            PUBLIC ${HID_UTIL_INCLUDES})
 
-    set_property(TARGET usb_util PROPERTY POSITION_INDEPENDENT_CODE ON)
+    set_property(TARGET hid_util PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-    target_link_libraries(usb_util
-            PRIVATE ${LIBUSB})
+    target_link_libraries(hid_util
+            PRIVATE str_util
+            PRIVATE ${HIDAPI})
 
     if(WIN32)
-        find_file(LIBUSB_RUNTIME libusb-1.0.dll)
+        find_file(HIDAPI_RUNTIME hidapi.dll)
 
-        if(NOT LIBUSB_RUNTIME STREQUAL "LIBUSB_RUNTIME-NOTFOUND")
-            install(FILES ${LIBUSB_RUNTIME}
+        if(NOT HIDAPI_RUNTIME STREQUAL "HIDAPI_RUNTIME-NOTFOUND")
+            install(FILES ${HIDAPI_RUNTIME}
                     DESTINATION bin
-                    COMPONENT libusb_library)
+                    COMPONENT hidapi_library)
         endif()
     endif()
 endif()

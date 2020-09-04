@@ -2,16 +2,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
-#include <libusb-1.0/libusb.h>
 #include <hwctl/device.h>
 #include <hwctl/plugin.h>
-#include <usb_util.h>
+#include <hid_util.h>
 #include <str_util.h>
 
 #define VENDOR_ID 0x1e71
 #define PRODUCT_ID 0x170e
-
-static libusb_context *ctx;
 
 enum dev_type {
     DEV,
@@ -22,7 +19,7 @@ struct dev_data {
     enum dev_type type;
     char *id;
     char *desc;
-    libusb_device_handle *handle;
+    hid_device *handle;
     unsigned char report[64];
     time_t report_time;
 };
@@ -37,7 +34,7 @@ static void dev_data_destroy(void *data) {
     struct dev_data *dev_data = data;
     free(dev_data->id);
     free(dev_data->desc);
-    libusb_close(dev_data->handle);
+    hid_close(dev_data->handle);
     free(dev_data);
 }
 
@@ -59,20 +56,12 @@ static void subdev_data_destroy(void *data) {
     free(subdev_data);
 }
 
-void hwctl_init_plugin(void) {
-    int result = libusb_init(&ctx);
-    if (result) {
-        fprintf(stderr, "Failed to initialize libusb-1.0: %s\n", libusb_strerror(result));
-        return;
-    }
-
-    libusb_set_debug(ctx, LIBUSB_LOG_LEVEL_WARNING);
+int hwctl_init_plugin(void) {
+    return hid_init();
 }
 
-void hwctl_shutdown_plugin(void) {
-    if (ctx) {
-        libusb_exit(ctx);
-    }
+int hwctl_shutdown_plugin(void) {
+    return hid_exit();
 }
 
 static char *get_id(struct hwctl_dev *dev) {
@@ -95,7 +84,7 @@ static struct hwctl_dev *get_root(struct hwctl_dev *dev) {
     }
 }
 
-static libusb_device_handle *get_handle(struct hwctl_dev *dev) {
+static hid_device *get_handle(struct hwctl_dev *dev) {
     return ((struct dev_data*) get_root(dev)->data)->handle;
 }
 
@@ -104,10 +93,11 @@ static unsigned char *get_report(struct hwctl_dev *dev) {
     struct dev_data *dev_data = root->data;
     time_t curtime = time(NULL);
     if (difftime(curtime, dev_data->report_time) >= 1) {
-        int transferred;
-        int result = libusb_interrupt_transfer(dev_data->handle, 0x81, dev_data->report, 64, &transferred, 1000);
-        if (result) {
-            fprintf(stderr, "Failed to read from USB device %s: %s\n", get_id(root), libusb_strerror(result));
+        int result = hid_read_timeout(dev_data->handle, dev_data->report, 64, 1000);
+        if (result == -1) {
+            fprintf(stderr, "Failed to read from HID device %s\n", get_id(root));
+        } else if (result == 0) {
+            fprintf(stderr, "Read from HID device %s timed out\n", get_id(root));
         } else {
             dev_data->report_time = curtime;
         }
@@ -121,13 +111,13 @@ static void base_dev_init(struct hwctl_dev *dev) {
     dev->get_desc = &get_desc;
 }
 
-static void kraken_dev_init(struct hwctl_dev *dev, libusb_device_handle *handle) {
+static void kraken_dev_init(struct hwctl_dev *dev, struct hid_device_info *info, hid_device *handle) {
     base_dev_init(dev);
     dev->destroy_data = &dev_data_destroy;
     struct dev_data *dev_data = malloc(sizeof(struct dev_data));
     dev_data_init(dev_data);
-    dev_data->id = usb_create_id(handle);
-    dev_data->desc = usb_create_desc(handle);
+    dev_data->id = hid_create_id(info);
+    dev_data->desc = hid_create_desc(info);
     dev_data->handle = handle;
     dev->data = dev_data;
 }
@@ -173,10 +163,9 @@ static void write_duty(struct hwctl_dev *dev, uint8_t type, uint8_t duty) {
 
     dev = get_root(dev);
     struct dev_data *dev_data = dev->data;
-    int transferred;
-    int result = libusb_interrupt_transfer(dev_data->handle, 0x01, msg, sizeof(msg), &transferred, 1000);
-    if (result) {
-        fprintf(stderr, "Failed to write to USB device %s: %s\n", get_id(dev), libusb_strerror(result));
+    int result = hid_write(dev_data->handle, msg, sizeof(msg));
+    if (result == -1) {
+        fprintf(stderr, "Failed to write to HID device %s\n", get_id(dev));
     }
 }
 
@@ -216,36 +205,24 @@ static void init_dev_pump(struct hwctl_dev *pump, struct hwctl_dev *parent) {
 }
 
 static void det_devs(struct vec *devs) {
-    libusb_device **list;
-    ssize_t cnt = libusb_get_device_list(ctx, &list);
-    if (cnt < 0) {
-        fprintf(stderr, "Failed to get list of USB devices: %s\n", libusb_strerror(cnt));
-        return;
-    }
+    struct hid_device_info *enumeration = hid_enumerate(VENDOR_ID, PRODUCT_ID);
 
-    for (unsigned i = 0; i < cnt; ++i) {
-        libusb_device *usb_dev = list[i];
-        struct libusb_device_descriptor desc;
-        libusb_get_device_descriptor(usb_dev, &desc);
-        
-        if (desc.idVendor == VENDOR_ID && desc.idProduct == PRODUCT_ID) {
-            libusb_device_handle *handle;
-            int result = libusb_open(usb_dev, &handle);
-            if (result) {
-                fprintf(stderr, "Failed to get handle for USB device: %s\n", libusb_strerror(result));
-                continue;
-            }
-
-            struct hwctl_dev *dev = vec_push_back(devs);
-            kraken_dev_init(dev, handle);
-
-            init_dev_liquid(vec_push_back(dev->subdevs), dev);
-            init_dev_fan(vec_push_back(dev->subdevs), dev);
-            init_dev_pump(vec_push_back(dev->subdevs), dev);
+    for (struct hid_device_info *info = enumeration; info; info = info->next) {
+        hid_device *handle = hid_open_path(info->path);
+        if (!handle) {
+            fprintf(stderr, "Failed to open HID device at path %s\n", info->path);
+            continue;
         }
+
+        struct hwctl_dev *dev = vec_push_back(devs);
+        kraken_dev_init(dev, info, handle);
+
+        init_dev_liquid(vec_push_back(dev->subdevs), dev);
+        init_dev_fan(vec_push_back(dev->subdevs), dev);
+        init_dev_pump(vec_push_back(dev->subdevs), dev);
     }
 
-    libusb_free_device_list(list, 1);
+    hid_free_enumeration(enumeration);
 }
 
 void hwctl_init_dev_det(struct hwctl_dev_det* dev_det) {
