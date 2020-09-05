@@ -6,7 +6,7 @@ struct vec;
 
 HWCTL_EXPORT void vec_init(struct vec**, size_t item_size);
 
-HWCTL_EXPORT void vec_destroy(struct vec*);
+HWCTL_EXPORT void vec_destroy(struct vec*, int keep_data);
 
 HWCTL_EXPORT size_t vec_size(const struct vec*);
 

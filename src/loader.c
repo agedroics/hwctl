@@ -56,13 +56,7 @@ void hwctl_load_plugins(void) {
                     init_shutdown_t init_plugin = dl_get_sym(plugin, "hwctl_init_plugin");
                     if (init_plugin) {
                         int result = init_plugin();
-                        if (!result) {
-#ifdef WIN32
-                            printf("%ls init\n", ent->d_name);
-#else
-                            printf("%s init\n", ent->d_name);
-#endif
-                        } else {
+                        if (result) {
 #ifdef WIN32
                             fprintf(stderr, "%ls failed to init\n", ent->d_name);
 #else
@@ -88,7 +82,7 @@ void hwctl_load_plugins(void) {
 }
 
 void hwctl_unload_plugins(void) {
-    vec_destroy(hwctl_dev_dets);
+    vec_destroy(hwctl_dev_dets, 0);
 
     for (unsigned i = 0; i < vec_size(plugins); ++i) {
         void *plugin = ((void**) vec_data(plugins))[i];
@@ -99,5 +93,5 @@ void hwctl_unload_plugins(void) {
         dl_close(plugin);
     }
 
-    vec_destroy(plugins);
+    vec_destroy(plugins, 0);
 }

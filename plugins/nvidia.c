@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <nvml.h>
 #include <hwctl/plugin.h>
 #include <str_util.h>
@@ -89,14 +88,14 @@ static void nvidia_dev_init(struct hwctl_dev *dev) {
     dev->destroy_data = &dev_data_destroy;
 }
 
-static float read_temp(struct hwctl_dev *dev) {
+static double read_temp(struct hwctl_dev *dev) {
     unsigned temp;
     nvmlReturn_t result = nvmlDeviceGetTemperature(get_handle(dev), NVML_TEMPERATURE_GPU, &temp);
     if (result != NVML_SUCCESS) {
         fprintf(stderr, "Failed to get temperature of %s: %s\n", get_uuid(dev), nvmlErrorString(result));
         return 0;
     }
-    return (float) temp;
+    return temp;
 }
 
 static void subdev_init(struct hwctl_dev *subdev, char *id, char *desc, struct hwctl_dev *parent) {
@@ -114,12 +113,11 @@ static void subdev_init(struct hwctl_dev *subdev, char *id, char *desc, struct h
 }
 
 static void core_dev_init(struct hwctl_dev *core, struct hwctl_dev *parent) {
-    subdev_init(core, "core", "GPU core temperature sensor", parent);
-    core->temp_sen = malloc(sizeof(struct hwctl_temp_sen));
-    core->temp_sen->read_temp = &read_temp;
+    subdev_init(core, "core", "GPU core temperature sensor (read degrees C)", parent);
+    core->read_sen = &read_temp;
 }
 
-static int32_t read_fan_duty(struct hwctl_dev *dev) {
+static double read_fan_duty(struct hwctl_dev *dev) {
     unsigned duty;
     nvmlReturn_t result = nvmlDeviceGetFanSpeed(get_handle(dev), &duty);
     if (result != NVML_SUCCESS) {
@@ -130,10 +128,8 @@ static int32_t read_fan_duty(struct hwctl_dev *dev) {
 }
 
 static void fan_dev_init(struct hwctl_dev *fan, struct hwctl_dev *parent) {
-    subdev_init(fan, "fan", "Fan", parent);
-    fan->speed_sen = malloc(sizeof(struct hwctl_speed_sen));
-    fan->speed_sen->read_duty = &read_fan_duty;
-    fan->speed_sen->read_speed = NULL;
+    subdev_init(fan, "fan", "Fan (read %)", parent);
+    fan->read_sen = &read_fan_duty;
 }
 
 static void det_devs(struct vec *devs) {
@@ -167,6 +163,7 @@ static void det_devs(struct vec *devs) {
         }
 
         struct dev_data *dev_data = malloc(sizeof(struct dev_data));
+        dev_data_init(dev_data);
 
         dev_data->uuid = str_make_copy(uuid);
         dev_data->desc = str_make_copy(name);

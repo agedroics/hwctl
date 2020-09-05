@@ -18,8 +18,10 @@ void vec_init(struct vec **vec, size_t item_size) {
     (*vec)->cap = INITIAL_CAP;
 }
 
-void vec_destroy(struct vec *vec) {
-    free(vec->data);
+void vec_destroy(struct vec *vec, int keep_data) {
+    if (!keep_data) {
+        free(vec->data);
+    }
     free(vec);
 }
 

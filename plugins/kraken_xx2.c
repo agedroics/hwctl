@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <pthread.h>
 #include <hwctl/device.h>
 #include <hwctl/plugin.h>
 #include <hid_util.h>
@@ -20,12 +21,14 @@ struct dev_data {
     char *id;
     char *desc;
     hid_device *handle;
+    pthread_mutex_t mutex;
     unsigned char report[64];
     time_t report_time;
 };
 
 static void dev_data_init(struct dev_data *dev_data) {
     dev_data->type = DEV;
+    pthread_mutex_init(&dev_data->mutex, NULL);
     memset(dev_data->report, 0, sizeof(dev_data->report));
     dev_data->report_time = 0;
 }
@@ -35,6 +38,7 @@ static void dev_data_destroy(void *data) {
     free(dev_data->id);
     free(dev_data->desc);
     hid_close(dev_data->handle);
+    pthread_mutex_destroy(&dev_data->mutex);
     free(dev_data);
 }
 
@@ -93,7 +97,9 @@ static unsigned char *get_report(struct hwctl_dev *dev) {
     struct dev_data *dev_data = root->data;
     time_t curtime = time(NULL);
     if (difftime(curtime, dev_data->report_time) >= 1) {
+        pthread_mutex_lock(&dev_data->mutex);
         int result = hid_read_timeout(dev_data->handle, dev_data->report, 64, 1000);
+        pthread_mutex_unlock(&dev_data->mutex);
         if (result == -1) {
             fprintf(stderr, "Failed to read from HID device %s\n", get_id(root));
         } else if (result == 0) {
@@ -133,18 +139,17 @@ static void subdev_init(struct hwctl_dev *dev, char *id, char *desc, struct hwct
     dev->data = subdev_data;
 }
 
-static float read_liquid_temp(struct hwctl_dev *dev) {
+static double read_liquid_temp(struct hwctl_dev *dev) {
     unsigned char *report = get_report(dev);
-    return report[1] + report[2] / 10.f;
+    return report[1] + report[2] / 10.;
 }
 
 static void init_dev_liquid(struct hwctl_dev *liquid, struct hwctl_dev *parent) {
-    subdev_init(liquid, "liquid", "Liquid temperature sensor", parent);
-    liquid->temp_sen = malloc(sizeof(struct hwctl_temp_sen));
-    liquid->temp_sen->read_temp = &read_liquid_temp;
+    subdev_init(liquid, "liquid", "Liquid temperature sensor (read degrees C)", parent);
+    liquid->read_sen = &read_liquid_temp;
 }
 
-static int32_t read_fan_speed(struct hwctl_dev *dev) {
+static double read_fan_speed(struct hwctl_dev *dev) {
     unsigned char *report = get_report(dev);
     return (uint32_t) (report[3] << 8u) | report[4];
 }
@@ -163,45 +168,40 @@ static void write_duty(struct hwctl_dev *dev, uint8_t type, uint8_t duty) {
 
     dev = get_root(dev);
     struct dev_data *dev_data = dev->data;
+    pthread_mutex_lock(&dev_data->mutex);
     int result = hid_write(dev_data->handle, msg, sizeof(msg));
+    pthread_mutex_unlock(&dev_data->mutex);
     if (result == -1) {
         fprintf(stderr, "Failed to write to HID device %s\n", get_id(dev));
     }
 }
 
-static void write_fan_duty(struct hwctl_dev *dev, int32_t duty) {
+static void write_fan_duty(struct hwctl_dev *dev, double duty) {
     write_duty(dev, 0x00, (uint8_t) clamp(25, duty, 100));
 }
 
 static void init_dev_fan(struct hwctl_dev *fan, struct hwctl_dev *parent) {
-    subdev_init(fan, "fan", "Fan", parent);
-    
-    fan->speed_sen = malloc(sizeof(struct hwctl_speed_sen));
-    fan->speed_sen->read_duty = NULL;
-    fan->speed_sen->read_speed = &read_fan_speed;
-
-    fan->speed_act = malloc(sizeof(struct hwctl_speed_act));
-    fan->speed_act->write_duty = &write_fan_duty;
+    subdev_init(fan, "fan", "Fan (read RPM, write %)", parent);
+    fan->read_sen = &read_fan_speed;
+    fan->write_act = &write_fan_duty;
 }
 
-static int32_t read_pump_speed(struct hwctl_dev *dev) {
+static double read_pump_speed(struct hwctl_dev *dev) {
     unsigned char *report = get_report(dev);
     return (uint32_t) (report[5] << 8u) | report[6];
 }
 
-static void write_pump_duty(struct hwctl_dev *dev, int32_t duty) {
+static void write_pump_duty(struct hwctl_dev *dev, double duty) {
+    if (read_liquid_temp(dev) >= 60) {
+        duty = 100;
+    }
     write_duty(dev, 0x40, (uint8_t) clamp(60, duty, 100));
 }
 
 static void init_dev_pump(struct hwctl_dev *pump, struct hwctl_dev *parent) {
-    subdev_init(pump, "pump", "Liquid pump", parent);
-    
-    pump->speed_sen = malloc(sizeof(struct hwctl_speed_sen));
-    pump->speed_sen->read_duty = NULL;
-    pump->speed_sen->read_speed = &read_pump_speed;
-
-    pump->speed_act = malloc(sizeof(struct hwctl_speed_act));
-    pump->speed_act->write_duty = &write_pump_duty;
+    subdev_init(pump, "pump", "Liquid pump (read RPM, write %)", parent);
+    pump->read_sen = &read_pump_speed;
+    pump->write_act = &write_pump_duty;
 }
 
 static void det_devs(struct vec *devs) {
