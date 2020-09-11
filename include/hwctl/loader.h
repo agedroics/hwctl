@@ -1,6 +1,6 @@
 #pragma once
-#include <hwctl/vec.h>
 #include <hwctl/export.h>
+#include <hwctl/vec.h>
 
 HWCTL_EXPORT const struct vec *get_hwctl_dev_dets(void);
 

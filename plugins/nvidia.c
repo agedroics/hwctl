@@ -1,5 +1,5 @@
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <nvml.h>
 #include <hwctl/plugin.h>
 #include <str_util.h>

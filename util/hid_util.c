@@ -1,7 +1,7 @@
-#include <stdlib.h>
 #include <stdio.h>
-#include <hid_util.h>
+#include <stdlib.h>
 #include <str_util.h>
+#include <hid_util.h>
 
 char *hid_create_id(struct hid_device_info *info) {
     return str_concat(2, "HID-", info->path);

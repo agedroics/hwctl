@@ -21,13 +21,11 @@ GENERATE_EXPORT_HEADER(hwctl
 
 target_include_directories(hwctl
         PUBLIC ${HWCTL_INCLUDES}
-        PRIVATE ${DL_UTIL_INCLUDES}
         PRIVATE ${STR_UTIL_INCLUDES})
 
 target_link_libraries(hwctl
-        PRIVATE dl_util
-        PRIVATE fs_util
-        PRIVATE str_util)
+        PRIVATE str_util
+        PRIVATE ${CMAKE_DL_LIBS})
 
 set_target_properties(hwctl
         PROPERTIES

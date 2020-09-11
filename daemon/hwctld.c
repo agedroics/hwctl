@@ -1,12 +1,15 @@
+#include <dirent.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
+#include <sys/stat.h>
 #include <hwctl/device.h>
 #include <hwctl/loader.h>
-#include <fs_util.h>
 #include <str_util.h>
 #include <profile.h>
+
+#define PROFILES_DIR "/etc/hwctld/profiles/"
 
 static void print_tree(unsigned depth, int connected) {
     if (depth == 1) {
@@ -92,7 +95,7 @@ static void *thread_runner(void *arg) {
     return NULL;
 }
 
-static void start_control() {
+static void start_daemon() {
     struct vec *devs;
     vec_init(&devs, sizeof(struct hwctl_dev));
     det_devs(devs);
@@ -103,24 +106,27 @@ static void start_control() {
     struct vec *threads;
     vec_init(&threads, sizeof(pthread_t));
 
-    path_char *path = "/etc/hwctld";
-    FS_DIR *dir = fs_opendir(path);
+    DIR *dir = opendir(PROFILES_DIR);
     if (dir != NULL) {
-        fs_dirent *ent;
-        while ((ent = fs_readdir(dir)) != NULL) {
+        struct dirent *ent;
+        while ((ent = readdir(dir)) != NULL) {
             if (ent->d_type != DT_REG) {
                 continue;
             }
-            char *full_path = str_concat(3, path, PATH_SEP_STR, ent->d_name);
-            struct profile *profile = profile_open(full_path, devs);
-            free(full_path);
-            if (profile) {
-                *((struct profile**) vec_push_back(profiles)) = profile;
-                pthread_t thread;
-                pthread_create(&thread, NULL, &thread_runner, profile);
-                *((pthread_t*) vec_push_back(threads)) = thread;
+            char *full_path = str_concat(2, PROFILES_DIR, ent->d_name);
+            struct stat sb;
+            if (stat(full_path, &sb) != -1 && (sb.st_mode & S_IFMT) == S_IFREG) {
+                struct profile *profile = profile_open(full_path, devs);
+                if (profile) {
+                    *((struct profile**) vec_push_back(profiles)) = profile;
+                    pthread_t thread;
+                    pthread_create(&thread, NULL, &thread_runner, profile);
+                    *((pthread_t*) vec_push_back(threads)) = thread;
+                }
             }
+            free(full_path);
         }
+        closedir(dir);
     }
 
     for (unsigned i = 0; i < vec_size(profiles); ++i) {
@@ -139,7 +145,7 @@ static void start_control() {
 int main(int argc, char **argv) {
     if (argc == 1) {
         hwctl_load_plugins();
-        start_control();
+        start_daemon();
         hwctl_unload_plugins();
     } else if (argc == 2) {
         if (!strcmp(argv[1], "list")) {

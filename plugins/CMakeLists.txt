@@ -1,5 +1,5 @@
 find_library(HIDAPI
-        NAMES hidapi hidapi-libusb hidapi-hidraw libhidapi libhidapi-dev)
+        NAMES hidapi libhidapi hidapi-libusb libhidapi-libusb hidapi-hidraw libhidapi-hidraw)
 
 if(NOT HIDAPI STREQUAL "HIDAPI-NOTFOUND")
     set(KRAKEN_XX2_SOURCES
@@ -24,17 +24,7 @@ if(NOT HIDAPI STREQUAL "HIDAPI-NOTFOUND")
 
     install(TARGETS kraken_xx2
             LIBRARY DESTINATION lib/hwctl
-            COMPONENT kraken_xx2_plugin)
-
-    if(WIN32)
-        find_file(HIDAPI_RUNTIME hidapi.dll)
-
-        if(NOT HIDAPI_RUNTIME STREQUAL "HIDAPI_RUNTIME-NOTFOUND")
-            install(FILES ${HIDAPI_RUNTIME}
-                    DESTINATION bin
-                    COMPONENT hidapi_library)
-        endif()
-    endif()
+            COMPONENT kraken-xx2-plugin)
 endif()
 
 
@@ -66,5 +56,5 @@ if(CUDA_FOUND)
 
     install(TARGETS nvidia
             LIBRARY DESTINATION lib/hwctl
-            COMPONENT nvidia_plugin)
+            COMPONENT nvidia-plugin)
 endif()

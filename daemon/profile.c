@@ -1,16 +1,11 @@
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
 #include <ctype.h>
+#include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <hwctl/device.h>
 #include <profile.h>
-
-#ifdef _WIN32
-#include <Windows.h>
-#else
-#include <unistd.h>
-#endif
 
 extern int errno;
 
@@ -178,11 +173,6 @@ void profile_exec(struct profile *profile) {
         }
 
         profile->dev_out->write_act(profile->dev_out, value_out);
-
-#ifdef _WIN32
-        Sleep(profile->period);
-#else
         usleep(profile->period * 1000);
-#endif
     }
 }

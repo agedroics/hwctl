@@ -1,15 +1,18 @@
+#include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <time.h>
-#include <pthread.h>
+#include <hid_util.h>
 #include <hwctl/device.h>
 #include <hwctl/plugin.h>
-#include <hid_util.h>
 #include <str_util.h>
 
 #define VENDOR_ID 0x1e71
 #define PRODUCT_ID 0x170e
+
+// how long a report is valid in seconds
+#define REPORT_TIME 0.1
 
 enum dev_type {
     DEV,
@@ -96,17 +99,19 @@ static unsigned char *get_report(struct hwctl_dev *dev) {
     struct hwctl_dev *root = get_root(dev);
     struct dev_data *dev_data = root->data;
     time_t curtime = time(NULL);
-    if (difftime(curtime, dev_data->report_time) >= 1) {
+    if (difftime(curtime, dev_data->report_time) >= REPORT_TIME) {
         pthread_mutex_lock(&dev_data->mutex);
-        int result = hid_read_timeout(dev_data->handle, dev_data->report, 64, 1000);
-        pthread_mutex_unlock(&dev_data->mutex);
-        if (result == -1) {
-            fprintf(stderr, "Failed to read from HID device %s\n", get_id(root));
-        } else if (result == 0) {
-            fprintf(stderr, "Read from HID device %s timed out\n", get_id(root));
-        } else {
-            dev_data->report_time = curtime;
+        if (difftime(curtime, dev_data->report_time) >= REPORT_TIME) {
+            int result = hid_read_timeout(dev_data->handle, dev_data->report, 64, 1000);
+            if (result == -1) {
+                fprintf(stderr, "Failed to read from HID device %s\n", get_id(root));
+            } else if (result == 0) {
+                fprintf(stderr, "Read from HID device %s timed out\n", get_id(root));
+            } else {
+                dev_data->report_time = curtime;
+            }
         }
+        pthread_mutex_unlock(&dev_data->mutex);
     }
     return dev_data->report;
 }

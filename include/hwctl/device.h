@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
-#include <hwctl/vec.h>
 #include <hwctl/export.h>
+#include <hwctl/vec.h>
 
 struct hwctl_dev;
 
