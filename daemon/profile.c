@@ -3,14 +3,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <hwctl/device.h>
+#include <time_util.h>
 #include <profile.h>
 
 extern int errno;
 
 struct profile {
-    unsigned period;
+    struct timespec period;
     struct hwctl_dev *dev_in;
     struct hwctl_dev *dev_out;
     struct vec *pairs;
@@ -126,7 +126,7 @@ struct profile *profile_open(char *path, struct vec *devs) {
     qsort(vec_data(pairs), vec_size(pairs), sizeof(double) * 2, &compare_pairs);
 
     profile = malloc(sizeof(struct profile));
-    profile->period = period;
+    time_from_millis(&profile->period, period);
     profile->dev_in = dev_in;
     profile->dev_out = dev_out;
     profile->pairs = pairs;
@@ -173,6 +173,6 @@ void profile_exec(struct profile *profile) {
         }
 
         profile->dev_out->write_act(profile->dev_out, value_out);
-        usleep(profile->period * 1000);
+        nanosleep(&profile->period, NULL);
     }
 }

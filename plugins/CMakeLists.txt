@@ -10,12 +10,14 @@ if(NOT HIDAPI STREQUAL "HIDAPI-NOTFOUND")
     target_include_directories(kraken_xx2
             PRIVATE ${HWCTL_INCLUDES}
             PRIVATE ${STR_UTIL_INCLUDES}
-            PRIVATE ${HID_UTIL_INCLUDES})
+            PRIVATE ${HID_UTIL_INCLUDES}
+            PRIVATE ${TIME_UTIL_INCLUDES})
 
     target_link_libraries(kraken_xx2
             PRIVATE hwctl
             PRIVATE str_util
             PRIVATE hid_util
+            PRIVATE time_util
             PRIVATE ${HIDAPI})
 
     set_target_properties(kraken_xx2

@@ -7,12 +7,16 @@
 #include <hwctl/device.h>
 #include <hwctl/plugin.h>
 #include <str_util.h>
+#include <time_util.h>
 
 #define VENDOR_ID 0x1e71
 #define PRODUCT_ID 0x170e
 
-// how long a report is valid in seconds
-#define REPORT_TIME 0.1
+// how long a report is valid
+static struct timespec report_time = {0, 100 * 1000000};
+
+// min time between reads/writes
+static struct timespec access_time = {0, 10 * 1000000};
 
 enum dev_type {
     DEV,
@@ -26,14 +30,20 @@ struct dev_data {
     hid_device *handle;
     pthread_mutex_t mutex;
     unsigned char report[64];
-    time_t report_time;
+    struct timespec report_time;
+    struct timespec access_time;
 };
 
 static void dev_data_init(struct dev_data *dev_data) {
     dev_data->type = DEV;
     pthread_mutex_init(&dev_data->mutex, NULL);
     memset(dev_data->report, 0, sizeof(dev_data->report));
-    dev_data->report_time = 0;
+
+    struct timespec time = time_nanos();
+    dev_data->report_time = time;
+    time_subtract(&dev_data->report_time, &report_time);
+    dev_data->access_time = time;
+    time_subtract(&dev_data->access_time, &access_time);
 }
 
 static void dev_data_destroy(void *data) {
@@ -95,20 +105,47 @@ static hid_device *get_handle(struct hwctl_dev *dev) {
     return ((struct dev_data*) get_root(dev)->data)->handle;
 }
 
+static void wait_for_access(struct dev_data *dev_data) {
+    struct timespec diff = time_nanos();
+    time_subtract(&diff, &dev_data->access_time);
+    struct timespec wait_time = time_diff(&access_time, &diff);
+    if (time_is_positive(&wait_time)) {
+        nanosleep(&wait_time, NULL);
+    }
+}
+
+static void acquire_io_lock(struct dev_data *dev_data) {
+    pthread_mutex_lock(&dev_data->mutex);
+    wait_for_access(dev_data);
+}
+
+static void release_io_lock(struct dev_data *dev_data) {
+    clock_gettime(CLOCK_MONOTONIC, &dev_data->access_time);
+    pthread_mutex_unlock(&dev_data->mutex);
+}
+
+static int report_is_expired(struct dev_data *dev_data) {
+    struct timespec diff = time_nanos();
+    time_subtract(&diff, &dev_data->report_time);
+    time_subtract(&diff, &report_time);
+    return time_is_positive(&diff);
+}
+
 static unsigned char *get_report(struct hwctl_dev *dev) {
     struct hwctl_dev *root = get_root(dev);
     struct dev_data *dev_data = root->data;
-    time_t curtime = time(NULL);
-    if (difftime(curtime, dev_data->report_time) >= REPORT_TIME) {
+    if (report_is_expired(dev_data)) {
         pthread_mutex_lock(&dev_data->mutex);
-        if (difftime(curtime, dev_data->report_time) >= REPORT_TIME) {
+        if (report_is_expired(dev_data)) {
+            wait_for_access(dev_data);
             int result = hid_read_timeout(dev_data->handle, dev_data->report, 64, 1000);
+            clock_gettime(CLOCK_MONOTONIC, &dev_data->access_time);
             if (result == -1) {
                 fprintf(stderr, "Failed to read from HID device %s\n", get_id(root));
             } else if (result == 0) {
                 fprintf(stderr, "Read from HID device %s timed out\n", get_id(root));
             } else {
-                dev_data->report_time = curtime;
+                dev_data->report_time = dev_data->access_time;
             }
         }
         pthread_mutex_unlock(&dev_data->mutex);
@@ -173,9 +210,9 @@ static void write_duty(struct hwctl_dev *dev, uint8_t type, uint8_t duty) {
 
     dev = get_root(dev);
     struct dev_data *dev_data = dev->data;
-    pthread_mutex_lock(&dev_data->mutex);
+    acquire_io_lock(dev_data);
     int result = hid_write(dev_data->handle, msg, sizeof(msg));
-    pthread_mutex_unlock(&dev_data->mutex);
+    release_io_lock(dev_data);
     if (result == -1) {
         fprintf(stderr, "Failed to write to HID device %s\n", get_id(dev));
     }
