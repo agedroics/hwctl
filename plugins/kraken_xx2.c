@@ -12,11 +12,8 @@
 #define VENDOR_ID 0x1e71
 #define PRODUCT_ID 0x170e
 
-// how long a report is valid
-static struct timespec report_time = {0, 100 * 1000000};
-
 // min time between reads/writes
-static struct timespec access_time = {0, 10 * 1000000};
+static struct timespec min_access_delay = {0, 10 * 1000000};
 
 enum dev_type {
     DEV,
@@ -29,21 +26,15 @@ struct dev_data {
     char *desc;
     hid_device *handle;
     pthread_mutex_t mutex;
-    unsigned char report[64];
-    struct timespec report_time;
     struct timespec access_time;
 };
 
 static void dev_data_init(struct dev_data *dev_data) {
     dev_data->type = DEV;
     pthread_mutex_init(&dev_data->mutex, NULL);
-    memset(dev_data->report, 0, sizeof(dev_data->report));
 
-    struct timespec time = time_nanos();
-    dev_data->report_time = time;
-    time_subtract(&dev_data->report_time, &report_time);
-    dev_data->access_time = time;
-    time_subtract(&dev_data->access_time, &access_time);
+    dev_data->access_time = time_nanos();
+    time_subtract(&dev_data->access_time, &min_access_delay);
 }
 
 static void dev_data_destroy(void *data) {
@@ -108,7 +99,7 @@ static hid_device *get_handle(struct hwctl_dev *dev) {
 static void wait_for_access(struct dev_data *dev_data) {
     struct timespec diff = time_nanos();
     time_subtract(&diff, &dev_data->access_time);
-    struct timespec wait_time = time_diff(&access_time, &diff);
+    struct timespec wait_time = time_diff(&min_access_delay, &diff);
     if (time_is_positive(&wait_time)) {
         nanosleep(&wait_time, NULL);
     }
@@ -124,33 +115,23 @@ static void release_io_lock(struct dev_data *dev_data) {
     pthread_mutex_unlock(&dev_data->mutex);
 }
 
-static int report_is_expired(struct dev_data *dev_data) {
-    struct timespec diff = time_nanos();
-    time_subtract(&diff, &dev_data->report_time);
-    time_subtract(&diff, &report_time);
-    return time_is_positive(&diff);
-}
-
-static unsigned char *get_report(struct hwctl_dev *dev) {
+static int read_report(struct hwctl_dev *dev, unsigned char *buffer) {
     struct hwctl_dev *root = get_root(dev);
     struct dev_data *dev_data = root->data;
-    if (report_is_expired(dev_data)) {
-        pthread_mutex_lock(&dev_data->mutex);
-        if (report_is_expired(dev_data)) {
-            wait_for_access(dev_data);
-            int result = hid_read_timeout(dev_data->handle, dev_data->report, 64, 1000);
-            clock_gettime(CLOCK_MONOTONIC, &dev_data->access_time);
-            if (result == -1) {
-                fprintf(stderr, "Failed to read from HID device %s\n", get_id(root));
-            } else if (result == 0) {
-                fprintf(stderr, "Read from HID device %s timed out\n", get_id(root));
-            } else {
-                dev_data->report_time = dev_data->access_time;
-            }
-        }
-        pthread_mutex_unlock(&dev_data->mutex);
+
+    acquire_io_lock(dev_data);
+    int result = hid_read_timeout(dev_data->handle, buffer, 64, 1000);
+    release_io_lock(dev_data);
+
+    if (result == -1) {
+        fprintf(stderr, "Failed to read from HID device %s\n", get_id(root));
+    } else if (result == 0) {
+        fprintf(stderr, "Read from HID device %s timed out\n", get_id(root));
+    } else {
+        return 0;
     }
-    return dev_data->report;
+
+    return 1;
 }
 
 static void base_dev_init(struct hwctl_dev *dev) {
@@ -182,8 +163,12 @@ static void subdev_init(struct hwctl_dev *dev, char *id, char *desc, struct hwct
 }
 
 static double read_liquid_temp(struct hwctl_dev *dev) {
-    unsigned char *report = get_report(dev);
-    return report[1] + report[2] / 10.;
+    unsigned char report[64];
+    if (read_report(dev, report)) {
+        return 100;
+    } else {
+        return report[1] + report[2] / 10.;
+    }
 }
 
 static void init_dev_liquid(struct hwctl_dev *liquid, struct hwctl_dev *parent) {
@@ -192,8 +177,12 @@ static void init_dev_liquid(struct hwctl_dev *liquid, struct hwctl_dev *parent) 
 }
 
 static double read_fan_speed(struct hwctl_dev *dev) {
-    unsigned char *report = get_report(dev);
-    return (uint32_t) (report[3] << 8u) | report[4];
+    unsigned char report[64];
+    if (read_report(dev, report)) {
+        return 0;
+    } else {
+        return (uint32_t) (report[3] << 8u) | report[4];
+    }
 }
 
 static int32_t clamp(int32_t min, int32_t val, int32_t max) {
@@ -229,8 +218,12 @@ static void init_dev_fan(struct hwctl_dev *fan, struct hwctl_dev *parent) {
 }
 
 static double read_pump_speed(struct hwctl_dev *dev) {
-    unsigned char *report = get_report(dev);
-    return (uint32_t) (report[5] << 8u) | report[6];
+    unsigned char report[64];
+    if (read_report(dev, report)) {
+        return 0;
+    } else {
+        return (uint32_t) (report[5] << 8u) | report[6];
+    }
 }
 
 static void write_pump_duty(struct hwctl_dev *dev, double duty) {
