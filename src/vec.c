@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <hwctl/vec.h>
 
 #define INITIAL_CAP 4
@@ -41,4 +42,10 @@ void *vec_push_back(struct vec *vec) {
 
 void *vec_data(const struct vec *vec) {
     return vec->data;
+}
+
+void vec_remove(struct vec *vec, void *item) {
+    size_t i = (((char*) item) - ((char*) vec->data)) / vec->item_size;
+    memmove(item, ((char*) item) + vec->item_size, (vec->size - i - 1) * vec->item_size);
+    --vec->size;
 }

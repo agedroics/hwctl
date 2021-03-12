@@ -1,33 +1,34 @@
 find_package(Threads)
 
-set(HWCTLD_SOURCES
+set(DAEMON_SOURCES
         ${PROJECT_SOURCE_DIR}/daemon/hwctld.c
         ${PROJECT_SOURCE_DIR}/daemon/profile.c)
 
-set(HWCTLD_HEADERS
+set(DAEMON_HEADERS
         ${PROJECT_SOURCE_DIR}/daemon/profile.h)
 
-set(HWCTLD_INCLUDES
+set(DAEMON_INCLUDES
         ${PROJECT_SOURCE_DIR}/daemon)
 
-add_executable(hwctld ${HWCTLD_SOURCES} ${HWCTLD_HEADERS})
+add_executable(daemon ${DAEMON_SOURCES} ${DAEMON_HEADERS})
 
-target_include_directories(hwctld
-        PRIVATE ${HWCTL_INCLUDES}
-        PRIVATE ${HWCTLD_INCLUDES}
+target_include_directories(daemon
+        PRIVATE ${LIBRARY_INCLUDES}
+        PRIVATE ${DAEMON_INCLUDES}
         PRIVATE ${STR_UTIL_INCLUDES}
         PRIVATE ${TIME_UTIL_INCLUDES})
 
-target_link_libraries(hwctld
-        PRIVATE hwctl
+target_link_libraries(daemon
+        PRIVATE library
         PRIVATE str_util
         PRIVATE time_util
         PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
-set_target_properties(hwctld
+set_target_properties(daemon
         PROPERTIES
+        OUTPUT_NAME hwctld
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-install(TARGETS hwctld
+install(TARGETS daemon
         RUNTIME DESTINATION bin
         COMPONENT daemon)

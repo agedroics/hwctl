@@ -14,6 +14,7 @@ struct profile {
     struct hwctl_dev *dev_in;
     struct hwctl_dev *dev_out;
     struct vec *pairs;
+    int stop;
 };
 
 static char *read_string(FILE *file) {
@@ -47,13 +48,13 @@ end:
     return str;
 }
 
-static struct hwctl_dev *read_dev(FILE *file, struct vec *devs) {
+static struct hwctl_dev *read_dev(FILE *file, const struct vec *devs) {
     struct hwctl_dev *result = NULL;
     for (;;) {
         char *str = read_string(file);
         int found = 0;
         if (str[0] && strcmp(str, ";")) {
-            struct vec *dev_list = result ? result->subdevs : devs;
+            const struct vec *dev_list = result ? result->subdevs : devs;
             for (unsigned i = 0; i < vec_size(dev_list); ++i) {
                 struct hwctl_dev *dev = ((struct hwctl_dev *) vec_data(dev_list)) + i;
                 if (!strcmp(str, dev->get_id(dev))) {
@@ -77,7 +78,7 @@ static int compare_pairs(const void *a, const void *b) {
     return pair1[0] > pair2[0] ? 1 : (pair1[0] == pair2[0] ? 0 : -1);
 }
 
-struct profile *profile_open(char *path, struct vec *devs) {
+struct profile *profile_open(const char *path, const struct vec *devs) {
     FILE *file = fopen(path, "r");
     if (!file) {
         fprintf(stderr, "Failed to open profile %s: %s\n", path, strerror(errno));
@@ -130,6 +131,7 @@ struct profile *profile_open(char *path, struct vec *devs) {
     profile->dev_in = dev_in;
     profile->dev_out = dev_out;
     profile->pairs = pairs;
+    profile->stop = 0;
 end:
     fclose(file);
     return profile;
@@ -140,39 +142,64 @@ void profile_close(struct profile *profile) {
     free(profile);
 }
 
-void profile_exec(struct profile *profile) {
-    for (;;) {
-        double value_in = profile->dev_in->read_sen(profile->dev_in);
-        double value_out;
+int profile_exec(const struct profile *profile) {
+    double value_in;
+    int result = profile->dev_in->read_sen(profile->dev_in, &value_in);
+    if (result) {
+        return 1;
+    }
+    double value_out;
+    int value_out_exists = 0;
 
-        if (!vec_size(profile->pairs)) {
-            value_out = value_in;
+    if (!vec_size(profile->pairs)) {
+        value_out = value_in;
+        value_out_exists = 1;
+    } else {
+        double *first_pair = ((double **) vec_data(profile->pairs))[0];
+        if (value_in < first_pair[0]) {
+            value_out = first_pair[1];
+            value_out_exists = 1;
         } else {
-            double *first_pair = ((double **) vec_data(profile->pairs))[0];
-            if (value_in < first_pair[0]) {
-                value_out = first_pair[1];
+            double *last_pair = ((double **) vec_data(profile->pairs))[vec_size(profile->pairs) - 1];
+            if (value_in > last_pair[0]) {
+                value_out = last_pair[1];
+                value_out_exists = 1;
             } else {
-                double *last_pair = ((double **) vec_data(profile->pairs))[vec_size(profile->pairs) - 1];
-                if (value_in > last_pair[0]) {
-                    value_out = last_pair[1];
-                } else {
-                    for (unsigned i = 0; i < vec_size(profile->pairs); ++i) {
-                        double *pair = ((double *) vec_data(profile->pairs)) + i;
-                        double x0 = pair[0];
-                        if (value_in >= x0) {
-                            double *next_pair = ((double *) vec_data(profile->pairs)) + i + 1;
-                            double y0 = pair[1];
-                            double dx = next_pair[0] - x0;
-                            double dy = next_pair[1] - y0;
-                            value_out = y0 + (value_in - x0) * dy / dx;
-                            break;
-                        }
+                for (unsigned i = 0; i < vec_size(profile->pairs); ++i) {
+                    double *pair = ((double *) vec_data(profile->pairs)) + i;
+                    double x0 = pair[0];
+                    if (value_in >= x0) {
+                        double *next_pair = ((double *) vec_data(profile->pairs)) + i + 1;
+                        double y0 = pair[1];
+                        double dx = next_pair[0] - x0;
+                        double dy = next_pair[1] - y0;
+                        value_out = y0 + (value_in - x0) * dy / dx;
+                        value_out_exists = 1;
+                        break;
                     }
                 }
             }
         }
-
-        profile->dev_out->write_act(profile->dev_out, value_out);
-        nanosleep(&profile->period, NULL);
     }
+
+    if (value_out_exists) {
+        result = profile->dev_out->write_act(profile->dev_out, value_out);
+        if (result) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+struct timespec profile_get_period(const struct profile *profile) {
+    return profile->period;
+}
+
+void profile_mark_for_stop(struct profile *profile) {
+    profile->stop = 1;
+}
+
+int profile_marked_for_stop(const struct profile *profile) {
+    return profile->stop;
 }

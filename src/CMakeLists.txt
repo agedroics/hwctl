@@ -1,39 +1,40 @@
 include(GenerateExportHeader)
 
-set(HWCTL_SOURCES
+set(LIBRARY_SOURCES
         ${PROJECT_SOURCE_DIR}/src/device.c
         ${PROJECT_SOURCE_DIR}/src/loader.c
         ${PROJECT_SOURCE_DIR}/src/vec.c)
 
-set(HWCTL_HEADERS
+set(LIBRARY_HEADERS
         ${PROJECT_SOURCE_DIR}/include/hwctl/device.h
         ${PROJECT_SOURCE_DIR}/include/hwctl/loader.h
         ${PROJECT_SOURCE_DIR}/include/hwctl/plugin.h
         ${PROJECT_SOURCE_DIR}/include/hwctl/vec.h
         ${PROJECT_SOURCE_DIR}/include/hwctl/export.h)
 
-set(HWCTL_INCLUDES ${PROJECT_SOURCE_DIR}/include)
+set(LIBRARY_INCLUDES ${PROJECT_SOURCE_DIR}/include)
 
-add_library(hwctl SHARED ${HWCTL_SOURCES} ${HWCTL_HEADERS})
+add_library(library SHARED ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
 
-GENERATE_EXPORT_HEADER(hwctl
+GENERATE_EXPORT_HEADER(library
         EXPORT_FILE_NAME ${PROJECT_SOURCE_DIR}/include/hwctl/export.h)
 
-target_include_directories(hwctl
-        PUBLIC ${HWCTL_INCLUDES}
+target_include_directories(library
+        PUBLIC ${LIBRARY_INCLUDES}
         PRIVATE ${STR_UTIL_INCLUDES})
 
-target_link_libraries(hwctl
+target_link_libraries(library
         PRIVATE str_util
         PRIVATE ${CMAKE_DL_LIBS})
 
-set_target_properties(hwctl
+set_target_properties(library
         PROPERTIES
+        OUTPUT_NAME hwctl
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-install(TARGETS hwctl
+install(TARGETS library
         ARCHIVE DESTINATION lib
         COMPONENT import_library
         LIBRARY DESTINATION lib
@@ -41,6 +42,6 @@ install(TARGETS hwctl
         RUNTIME DESTINATION bin
         COMPONENT library)
 
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
-        DESTINATION include
-        COMPONENT headers)
+#install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
+#        DESTINATION include
+#        COMPONENT headers)

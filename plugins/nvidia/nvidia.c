@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <nvml.h>
 #include <hwctl/plugin.h>
 #include <str_util.h>
@@ -45,7 +46,7 @@ static void subdev_data_destroy(void *data) {
     free(subdev_data);
 }
 
-static enum dev_type get_type(void *data) {
+static enum dev_type get_type(const void *data) {
     return *((enum dev_type*) data);
 }
 
@@ -61,11 +62,11 @@ static char *get_uuid(struct hwctl_dev *dev) {
     return ((struct dev_data*) get_root(dev)->data)->uuid;
 }
 
-static char *get_desc(struct hwctl_dev *dev) {
+static const char *get_desc(const struct hwctl_dev *dev) {
     return ((struct dev_data*) dev->data)->desc;
 }
 
-static char *get_id(struct hwctl_dev* dev) {
+static const char *get_id(const struct hwctl_dev* dev) {
     if (get_type(dev->data) == DEV) {
         return ((struct dev_data*) dev->data)->uuid;
     } else {
@@ -88,14 +89,15 @@ static void nvidia_dev_init(struct hwctl_dev *dev) {
     dev->destroy_data = &dev_data_destroy;
 }
 
-static double read_temp(struct hwctl_dev *dev) {
-    unsigned temp;
-    nvmlReturn_t result = nvmlDeviceGetTemperature(get_handle(dev), NVML_TEMPERATURE_GPU, &temp);
+static int read_temp(struct hwctl_dev *dev, double *temp) {
+    unsigned temp1;
+    nvmlReturn_t result = nvmlDeviceGetTemperature(get_handle(dev), NVML_TEMPERATURE_GPU, &temp1);
     if (result != NVML_SUCCESS) {
         fprintf(stderr, "Failed to get temperature of %s: %s\n", get_uuid(dev), nvmlErrorString(result));
-        return 0;
+        return 1;
     }
-    return temp;
+    *temp = temp1;
+    return 0;
 }
 
 static void subdev_init(struct hwctl_dev *subdev, char *id, char *desc, struct hwctl_dev *parent) {
@@ -117,14 +119,15 @@ static void core_dev_init(struct hwctl_dev *core, struct hwctl_dev *parent) {
     core->read_sen = &read_temp;
 }
 
-static double read_fan_duty(struct hwctl_dev *dev) {
-    unsigned duty;
-    nvmlReturn_t result = nvmlDeviceGetFanSpeed(get_handle(dev), &duty);
+static int read_fan_duty(struct hwctl_dev *dev, double *duty) {
+    unsigned duty1;
+    nvmlReturn_t result = nvmlDeviceGetFanSpeed(get_handle(dev), &duty1);
     if (result != NVML_SUCCESS) {
         fprintf(stderr, "Failed to get speed of %s: %s\n", get_uuid(dev), nvmlErrorString(result));
-        return 0;
+        return 1;
     }
-    return duty;
+    *duty = duty1;
+    return 0;
 }
 
 static void fan_dev_init(struct hwctl_dev *fan, struct hwctl_dev *parent) {
@@ -155,12 +158,13 @@ static void det_devs(struct vec *devs) {
             continue;
         }
 
-        char name[NVML_DEVICE_NAME_BUFFER_SIZE];
-        result = nvmlDeviceGetName(handle, name, NVML_DEVICE_NAME_BUFFER_SIZE);
+        char name[NVML_DEVICE_NAME_BUFFER_SIZE + 7];
+        result = nvmlDeviceGetName(handle, name + 7, NVML_DEVICE_NAME_BUFFER_SIZE);
         if (result != NVML_SUCCESS) { 
             fprintf(stderr, "Failed to get name of nVidia device %u: %s\n", i, nvmlErrorString(result));
             continue;
         }
+        memcpy(name, "Nvidia ", 7);
 
         struct dev_data *dev_data = malloc(sizeof(struct dev_data));
         dev_data_init(dev_data);

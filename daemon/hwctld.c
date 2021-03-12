@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <dirent.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -10,6 +12,10 @@
 #include <profile.h>
 
 #define PROFILES_DIR "/etc/hwctld/profiles/"
+
+static struct profile *next_profile;
+static pthread_mutex_t next_profile_get_mutex;
+static pthread_mutex_t next_profile_set_mutex;
 
 static void print_tree(unsigned depth, int connected) {
     if (depth == 1) {
@@ -27,7 +33,7 @@ static void print_tree(unsigned depth, int connected) {
     }
 }
 
-static void print_dev(struct hwctl_dev *dev, unsigned depth) {
+static void print_dev(const struct hwctl_dev *dev, unsigned depth) {
     print_tree(depth, 0);
     putchar('\n');
     print_tree(depth, 1);
@@ -91,7 +97,17 @@ static void list_devices() {
 
 static void *thread_runner(void *arg) {
     struct profile *profile = (struct profile*) arg;
-    profile_exec(profile);
+    while (!profile_marked_for_stop(profile)) {
+        pthread_mutex_lock(&next_profile_set_mutex);
+        if (profile_marked_for_stop(profile)) {
+            next_profile = NULL;
+        } else {
+            next_profile = profile;
+        }
+        pthread_mutex_unlock(&next_profile_get_mutex);
+        struct timespec period = profile_get_period(profile);
+        nanosleep(&period, NULL);
+    }
     return NULL;
 }
 
@@ -103,25 +119,27 @@ static void start_daemon() {
     struct vec *profiles;
     vec_init(&profiles, sizeof(struct profile*));
 
-    struct vec *threads;
-    vec_init(&threads, sizeof(pthread_t));
+    pthread_mutex_init(&next_profile_get_mutex, NULL);
+    pthread_mutex_init(&next_profile_set_mutex, NULL);
 
     DIR *dir = opendir(PROFILES_DIR);
     if (dir != NULL) {
         struct dirent *ent;
         while ((ent = readdir(dir)) != NULL) {
-            if (ent->d_type != DT_REG) {
+            if (ent->d_type != DT_REG && ent->d_type != DT_LNK) {
                 continue;
             }
             char *full_path = str_concat(2, PROFILES_DIR, ent->d_name);
             struct stat sb;
-            if (stat(full_path, &sb) != -1 && (sb.st_mode & S_IFMT) == S_IFREG) {
+            if (stat(full_path, &sb) != -1 && S_ISREG(sb.st_mode)) {
                 struct profile *profile = profile_open(full_path, devs);
                 if (profile) {
                     *((struct profile**) vec_push_back(profiles)) = profile;
                     pthread_t thread;
                     pthread_create(&thread, NULL, &thread_runner, profile);
-                    *((pthread_t*) vec_push_back(threads)) = thread;
+                    char thread_name[16];
+                    strncpy(thread_name, ent->d_name, 15);
+                    pthread_setname_np(thread, thread_name);
                 }
             }
             free(full_path);
@@ -129,15 +147,25 @@ static void start_daemon() {
         closedir(dir);
     }
 
-    for (unsigned i = 0; i < vec_size(profiles); ++i) {
-        struct profile *profile = ((struct profile**) vec_data(profiles))[i];
-        pthread_t thread = ((pthread_t*) vec_data(threads))[i];
-        pthread_join(thread, NULL);
-        profile_close(profile);
+    while (vec_size(profiles)) {
+        pthread_mutex_lock(&next_profile_get_mutex);
+        struct profile *profile = next_profile;
+        pthread_mutex_unlock(&next_profile_set_mutex);
+
+        if (profile && profile_exec(profile)) {
+            profile_mark_for_stop(profile);
+            for (unsigned i = 0; i < vec_size(profiles); ++i) {
+                struct profile *item = ((struct profile**) vec_data(profiles))[i];
+                if (item == profile) {
+                    vec_remove(profiles, item);
+                    profile_close(profile);
+                    break;
+                }
+            }
+        }
     }
 
     vec_destroy(profiles, 0);
-    vec_destroy(threads, 0);
     destroy_devs(devs);
     vec_destroy(devs, 0);
 }

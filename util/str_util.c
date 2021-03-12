@@ -4,7 +4,7 @@
 #include <wchar.h>
 #include <str_util.h>
 
-char *str_make_copy(char *str) {
+char *str_make_copy(const char *str) {
     return str_concat(1, str);
 }
 
@@ -32,7 +32,7 @@ char *str_concat(size_t n, ...) {
     return str;
 }
 
-char *wstr_to_str(wchar_t *wstr) {
+char *wstr_to_str(const wchar_t *wstr) {
     size_t bytes = wcslen(wstr) * sizeof(wchar_t) + 1;
     char *str = malloc(bytes);
     wcstombs(str, wstr, bytes);
