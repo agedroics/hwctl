@@ -13,10 +13,8 @@ void time_from_millis(struct timespec *tp, long millis) {
     }
 }
 
-struct timespec time_nanos() {
-    struct timespec tp;
-    clock_gettime(CLOCK_MONOTONIC, &tp);
-    return tp;
+void time_nanos(struct timespec *tp) {
+    clock_gettime(CLOCK_MONOTONIC, tp);
 }
 
 struct timespec time_diff(const struct timespec *tp1, const struct timespec *tp2) {
@@ -28,7 +26,7 @@ struct timespec time_diff(const struct timespec *tp1, const struct timespec *tp2
 void time_add(struct timespec *tp, const struct timespec *amt) {
     tp->tv_sec += amt->tv_sec;
     tp->tv_nsec += amt->tv_nsec;
-    if (tp->tv_nsec >= BILLION) {
+    while (tp->tv_nsec >= BILLION) {
         tp->tv_nsec -= BILLION;
         ++tp->tv_sec;
     }
@@ -37,12 +35,27 @@ void time_add(struct timespec *tp, const struct timespec *amt) {
 void time_subtract(struct timespec *tp, const struct timespec *amt) {
     tp->tv_sec -= amt->tv_sec;
     tp->tv_nsec -= amt->tv_nsec;
-    if (tp->tv_nsec < 0) {
+    while (tp->tv_nsec < 0) {
         tp->tv_nsec += BILLION;
         --tp->tv_sec;
     }
 }
 
 int time_is_positive(const struct timespec *tp) {
-    return tp->tv_sec == 0 && tp->tv_nsec > 0 || tp->tv_sec > 0;
+    return tp->tv_sec > 0 || tp->tv_nsec > 0;
+}
+
+int time_is_negative(const struct timespec *tp) {
+    return tp->tv_sec < 0;
+}
+
+int time_cmp(const struct timespec *tp1, const struct timespec *tp2) {
+    struct timespec diff = time_diff(tp1, tp2);
+    if (time_is_positive(&diff)) {
+        return 1;
+    } else if (time_is_negative(&diff)) {
+        return -1;
+    } else {
+        return 0;
+    }
 }

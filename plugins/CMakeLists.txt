@@ -1,3 +1,7 @@
-add_subdirectory(${PLUGIN_SOURCE_DIR}/kraken_xx2)
+set(KRAKEN_XX2_PLUGIN_SOURCE_DIR ${PLUGINS_SOURCE_DIR}/kraken_xx2)
 
-add_subdirectory(${PLUGIN_SOURCE_DIR}/nvidia)
+set(NVIDIA_PLUGIN_SOURCE_DIR ${PLUGINS_SOURCE_DIR}/nvidia)
+
+add_subdirectory(${KRAKEN_XX2_PLUGIN_SOURCE_DIR})
+
+add_subdirectory(${NVIDIA_PLUGIN_SOURCE_DIR})

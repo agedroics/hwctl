@@ -173,12 +173,12 @@ static void det_devs(struct vec *devs) {
         dev_data->desc = str_make_copy(name);
         dev_data->handle = handle;
 
-        struct hwctl_dev *dev = vec_push_back(devs);
+        struct hwctl_dev *dev = vec_push_back(devs, NULL);
         nvidia_dev_init(dev);
         dev->data = dev_data;
 
-        core_dev_init(vec_push_back(dev->subdevs), dev);
-        fan_dev_init(vec_push_back(dev->subdevs), dev);
+        core_dev_init(vec_push_back(dev->subdevs, NULL), dev);
+        fan_dev_init(vec_push_back(dev->subdevs, NULL), dev);
     }
 }
 

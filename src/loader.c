@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <hwctl/device.h>
 #include <str_util.h>
 #include <hwctl/loader.h>
@@ -16,25 +15,8 @@ typedef int (*init_shutdown_t)(void);
 
 typedef void (*init_dev_det_t)(struct hwctl_dev_det*);
 
-const struct vec *get_hwctl_dev_dets(void) {
+struct vec *get_hwctl_dev_dets(void) {
     return hwctl_dev_dets;
-}
-
-static char *get_exe_path() {
-    size_t bytes = 256;
-    char *path = malloc(bytes);
-    ssize_t n;
-    for (;;) {
-        n = readlink("/proc/self/exe", path, bytes);
-        if (n == bytes) {
-            bytes <<= 1u;
-            path = realloc(path, bytes);
-        } else {
-            break;
-        }
-    }
-    path[n] = 0;
-    return path;
 }
 
 static void remove_file(char *path) {
@@ -55,7 +37,7 @@ void hwctl_load_plugins(void) {
 
     char *plugin_path;
     {
-        char *temp = get_exe_path();
+        char *temp = realpath("/proc/self/exe", NULL);
         remove_file(temp);
         remove_file(temp);
         plugin_path = str_concat(2, temp, "/lib/hwctl");
@@ -74,15 +56,14 @@ void hwctl_load_plugins(void) {
                 if (plugin) {
                     init_shutdown_t init_plugin = dlsym(plugin, "hwctl_init_plugin");
                     if (init_plugin) {
-                        int result = init_plugin();
-                        if (result) {
+                        int error = init_plugin();
+                        if (error) {
                             fprintf(stderr, "%s failed to init\n", ent->d_name);
                         }
-                        void *ptr = vec_push_back(plugins);
-                        memcpy(ptr, &plugin, sizeof(void*));
+                        vec_push_back(plugins, &plugin);
                         init_dev_det_t init_dev_det = dlsym(plugin, "hwctl_init_dev_det");
                         if (init_dev_det != NULL) {
-                            init_dev_det(vec_push_back(hwctl_dev_dets));
+                            init_dev_det(vec_push_back(hwctl_dev_dets, NULL));
                         }
                     } else {
                         dlclose(plugin);
@@ -100,7 +81,7 @@ void hwctl_unload_plugins(void) {
     vec_destroy(hwctl_dev_dets, 0);
 
     for (unsigned i = 0; i < vec_size(plugins); ++i) {
-        void *plugin = ((void**) vec_data(plugins))[i];
+        void *plugin = *((void**) vec_at(plugins, i));
         init_shutdown_t shutdown_plugin = dlsym(plugin, "hwctl_shutdown_plugin");
         if (shutdown_plugin) {
             shutdown_plugin();

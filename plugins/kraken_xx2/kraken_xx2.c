@@ -129,8 +129,8 @@ static int read_report(struct hwctl_dev *dev, unsigned char *buffer) {
     struct dev_data *dev_data = dev->data;
 
     if (!dev_data->handle) {
-        int result = reopen_device(dev_data);
-        if (result) {
+        int error = reopen_device(dev_data);
+        if (error) {
             return 1;
         }
     }
@@ -220,8 +220,8 @@ static int write_duty(struct hwctl_dev *dev, uint8_t type, uint8_t duty) {
     struct dev_data *dev_data = dev->data;
 
     if (!dev_data->handle) {
-        int result = reopen_device(dev_data);
-        if (result) {
+        int error = reopen_device(dev_data);
+        if (error) {
             return 1;
         }
     }
@@ -280,12 +280,12 @@ static void det_devs(struct vec *devs) {
     struct hid_device_info *enumeration = hid_enumerate(VENDOR_ID, PRODUCT_ID);
 
     for (struct hid_device_info *info = enumeration; info; info = info->next) {
-        struct hwctl_dev *dev = vec_push_back(devs);
+        struct hwctl_dev *dev = vec_push_back(devs, NULL);
         kraken_dev_init(dev, info);
 
-        init_dev_liquid(vec_push_back(dev->subdevs), dev);
-        init_dev_fan(vec_push_back(dev->subdevs), dev);
-        init_dev_pump(vec_push_back(dev->subdevs), dev);
+        init_dev_liquid(vec_push_back(dev->subdevs, NULL), dev);
+        init_dev_fan(vec_push_back(dev->subdevs, NULL), dev);
+        init_dev_pump(vec_push_back(dev->subdevs, NULL), dev);
     }
 
     hid_free_enumeration(enumeration);

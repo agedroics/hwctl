@@ -1,14 +1,14 @@
-find_package(Threads)
-
 set(DAEMON_SOURCES
-        ${PROJECT_SOURCE_DIR}/daemon/hwctld.c
-        ${PROJECT_SOURCE_DIR}/daemon/profile.c)
+        ${DAEMON_SOURCE_DIR}/heap.c
+        ${DAEMON_SOURCE_DIR}/hwctld.c
+        ${DAEMON_SOURCE_DIR}/profile.c)
 
 set(DAEMON_HEADERS
-        ${PROJECT_SOURCE_DIR}/daemon/profile.h)
+        ${DAEMON_SOURCE_DIR}/heap.h
+        ${DAEMON_SOURCE_DIR}/profile.h)
 
 set(DAEMON_INCLUDES
-        ${PROJECT_SOURCE_DIR}/daemon)
+        ${DAEMON_SOURCE_DIR})
 
 add_executable(daemon ${DAEMON_SOURCES} ${DAEMON_HEADERS})
 
@@ -21,8 +21,7 @@ target_include_directories(daemon
 target_link_libraries(daemon
         PRIVATE library
         PRIVATE str_util
-        PRIVATE time_util
-        PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+        PRIVATE time_util)
 
 set_target_properties(daemon
         PROPERTIES

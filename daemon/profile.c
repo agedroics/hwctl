@@ -9,14 +9,6 @@
 
 extern int errno;
 
-struct profile {
-    struct timespec period;
-    struct hwctl_dev *dev_in;
-    struct hwctl_dev *dev_out;
-    struct vec *pairs;
-    int stop;
-};
-
 static char *read_string(FILE *file) {
     struct vec *buf;
     vec_init(&buf, sizeof(char));
@@ -34,7 +26,7 @@ static char *read_string(FILE *file) {
     } while (isspace(c));
 
     do {
-        *((char*) vec_push_back(buf)) = c;
+        vec_push_back(buf, &c);
         c = fgetc(file);
         if (feof(file)) {
             goto end;
@@ -42,7 +34,7 @@ static char *read_string(FILE *file) {
     } while (!isspace(c));
 
 end:
-    *((char*) vec_push_back(buf)) = 0;
+    vec_push_back(buf, NULL);
     char *str = vec_data(buf);
     vec_destroy(buf, 1);
     return str;
@@ -56,7 +48,7 @@ static struct hwctl_dev *read_dev(FILE *file, const struct vec *devs) {
         if (str[0] && strcmp(str, ";")) {
             const struct vec *dev_list = result ? result->subdevs : devs;
             for (unsigned i = 0; i < vec_size(dev_list); ++i) {
-                struct hwctl_dev *dev = ((struct hwctl_dev *) vec_data(dev_list)) + i;
+                struct hwctl_dev *dev = vec_at(dev_list, i);
                 if (!strcmp(str, dev->get_id(dev))) {
                     result = dev;
                     found = 1;
@@ -78,74 +70,73 @@ static int compare_pairs(const void *a, const void *b) {
     return pair1[0] > pair2[0] ? 1 : (pair1[0] == pair2[0] ? 0 : -1);
 }
 
-struct profile *profile_open(const char *path, const struct vec *devs) {
+int profile_open(struct profile *profile, const char *path, const struct vec *devs) {
     FILE *file = fopen(path, "r");
     if (!file) {
         fprintf(stderr, "Failed to open profile %s: %s\n", path, strerror(errno));
-        return NULL;
+        return 1;
     }
-
-    struct profile *profile = NULL;
 
     unsigned period;
     if (!fscanf(file, "%u", &period)) {
         fprintf(stderr, "Failed to read period from profile %s\n", path);
-        goto end;
+        fclose(file);
+        return 1;
     }
 
     struct hwctl_dev *dev_in = read_dev(file, devs);
     if (!dev_in) {
         fprintf(stderr, "Error in profile %s: input device not found\n", path);
-        goto end;
+        fclose(file);
+        return 1;
     } else if (!dev_in->read_sen) {
         fprintf(stderr, "Error in profile %s: input device does not have capability 'read'\n", path);
-        goto end;
+        fclose(file);
+        return 1;
     }
 
     struct hwctl_dev *dev_out = read_dev(file, devs);
     if (!dev_out) {
         fprintf(stderr, "Error in profile %s: output device not found\n", path);
-        goto end;
+        fclose(file);
+        return 1;
     } else if (!dev_out->write_act) {
         fprintf(stderr, "Error in profile %s: output device does not have capability 'write'\n", path);
-        goto end;
+        fclose(file);
+        return 1;
     }
 
     struct vec *pairs;
-    vec_init(&pairs, sizeof(double) * 2);
-    int i = 1;
+    vec_init(&pairs, sizeof(double) << 1);
     while (!feof(file)) {
-        double values[2];
+        double *values = vec_push_back(pairs, NULL);
         if (!fscanf(file, "%lf", values) || !fscanf(file, "%lf", values + 1)) {
-            fprintf(stderr, "Error in profile %s: invalid value pair %d\n", path, i);
+            fprintf(stderr, "Error in profile %s: invalid value pair %lu\n", path, vec_index_of(pairs, values) + 1);
             vec_destroy(pairs, 0);
-            goto end;
+            fclose(file);
+            return 1;
         }
-        ++i;
     }
 
-    qsort(vec_data(pairs), vec_size(pairs), sizeof(double) * 2, &compare_pairs);
+    vec_sort(pairs, &compare_pairs);
 
-    profile = malloc(sizeof(struct profile));
     time_from_millis(&profile->period, period);
     profile->dev_in = dev_in;
     profile->dev_out = dev_out;
     profile->pairs = pairs;
-    profile->stop = 0;
-end:
+
     fclose(file);
-    return profile;
+    return 0;
 }
 
 void profile_close(struct profile *profile) {
     vec_destroy(profile->pairs, 0);
-    free(profile);
 }
 
 int profile_exec(const struct profile *profile) {
     double value_in;
-    int result = profile->dev_in->read_sen(profile->dev_in, &value_in);
-    if (result) {
+    int error = profile->dev_in->read_sen(profile->dev_in, &value_in);
+    if (error) {
         return 1;
     }
     double value_out;
@@ -155,21 +146,21 @@ int profile_exec(const struct profile *profile) {
         value_out = value_in;
         value_out_exists = 1;
     } else {
-        double *first_pair = ((double **) vec_data(profile->pairs))[0];
+        double *first_pair = vec_head(profile->pairs);
         if (value_in < first_pair[0]) {
             value_out = first_pair[1];
             value_out_exists = 1;
         } else {
-            double *last_pair = ((double **) vec_data(profile->pairs))[vec_size(profile->pairs) - 1];
+            double *last_pair = vec_last(profile->pairs);
             if (value_in > last_pair[0]) {
                 value_out = last_pair[1];
                 value_out_exists = 1;
             } else {
                 for (unsigned i = 0; i < vec_size(profile->pairs); ++i) {
-                    double *pair = ((double *) vec_data(profile->pairs)) + i;
+                    double *pair = vec_at(profile->pairs, i);
                     double x0 = pair[0];
                     if (value_in >= x0) {
-                        double *next_pair = ((double *) vec_data(profile->pairs)) + i + 1;
+                        double *next_pair = vec_at(profile->pairs, i + 1);
                         double y0 = pair[1];
                         double dx = next_pair[0] - x0;
                         double dy = next_pair[1] - y0;
@@ -183,8 +174,8 @@ int profile_exec(const struct profile *profile) {
     }
 
     if (value_out_exists) {
-        result = profile->dev_out->write_act(profile->dev_out, value_out);
-        if (result) {
+        error = profile->dev_out->write_act(profile->dev_out, value_out);
+        if (error) {
             return 1;
         }
     }
@@ -194,16 +185,4 @@ int profile_exec(const struct profile *profile) {
     }
 
     return 0;
-}
-
-struct timespec profile_get_period(const struct profile *profile) {
-    return profile->period;
-}
-
-void profile_mark_for_stop(struct profile *profile) {
-    profile->stop = 1;
-}
-
-int profile_marked_for_stop(const struct profile *profile) {
-    return profile->stop;
 }

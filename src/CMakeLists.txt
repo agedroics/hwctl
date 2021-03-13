@@ -1,23 +1,23 @@
 include(GenerateExportHeader)
 
 set(LIBRARY_SOURCES
-        ${PROJECT_SOURCE_DIR}/src/device.c
-        ${PROJECT_SOURCE_DIR}/src/loader.c
-        ${PROJECT_SOURCE_DIR}/src/vec.c)
+        ${LIBRARY_SOURCE_DIR}/device.c
+        ${LIBRARY_SOURCE_DIR}/loader.c
+        ${LIBRARY_SOURCE_DIR}/vec.c)
 
 set(LIBRARY_HEADERS
-        ${PROJECT_SOURCE_DIR}/include/hwctl/device.h
-        ${PROJECT_SOURCE_DIR}/include/hwctl/loader.h
-        ${PROJECT_SOURCE_DIR}/include/hwctl/plugin.h
-        ${PROJECT_SOURCE_DIR}/include/hwctl/vec.h
-        ${PROJECT_SOURCE_DIR}/include/hwctl/export.h)
+        ${HEADERS_SOURCE_DIR}/hwctl/device.h
+        ${HEADERS_SOURCE_DIR}/hwctl/loader.h
+        ${HEADERS_SOURCE_DIR}/hwctl/plugin.h
+        ${HEADERS_SOURCE_DIR}/hwctl/vec.h
+        ${HEADERS_SOURCE_DIR}/hwctl/export.h)
 
-set(LIBRARY_INCLUDES ${PROJECT_SOURCE_DIR}/include)
+set(LIBRARY_INCLUDES ${HEADERS_SOURCE_DIR})
 
 add_library(library SHARED ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
 
 GENERATE_EXPORT_HEADER(library
-        EXPORT_FILE_NAME ${PROJECT_SOURCE_DIR}/include/hwctl/export.h)
+        EXPORT_FILE_NAME ${HEADERS_SOURCE_DIR}/hwctl/export.h)
 
 target_include_directories(library
         PUBLIC ${LIBRARY_INCLUDES}
@@ -41,7 +41,3 @@ install(TARGETS library
         COMPONENT library
         RUNTIME DESTINATION bin
         COMPONENT library)
-
-#install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
-#        DESTINATION include
-#        COMPONENT headers)

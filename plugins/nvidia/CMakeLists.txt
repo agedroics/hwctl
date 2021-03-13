@@ -2,7 +2,7 @@ find_package(CUDA)
 
 if(CUDA_FOUND)
     set(NVIDIA_PLUGIN_SOURCES
-            ${PLUGIN_SOURCE_DIR}/nvidia/nvidia.c)
+            ${NVIDIA_PLUGIN_SOURCE_DIR}/nvidia.c)
 
     add_library(nvidia-plugin MODULE ${NVIDIA_PLUGIN_SOURCES})
 

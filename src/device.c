@@ -8,7 +8,7 @@ void hwctl_dev_init(struct hwctl_dev *dev) {
 
 void hwctl_dev_destroy(struct hwctl_dev *dev) {
     for (unsigned i = 0; i < vec_size(dev->subdevs); ++i) {
-        hwctl_dev_destroy(((struct hwctl_dev*) vec_data(dev->subdevs)) + i);
+        hwctl_dev_destroy(vec_at(dev->subdevs, i));
     }
     dev->destroy_data(dev->data);
     vec_destroy(dev->subdevs, 0);

@@ -3,7 +3,7 @@ find_library(HIDAPI
 
 if(NOT HIDAPI STREQUAL "HIDAPI-NOTFOUND")
     set(KRAKEN_XX2_PLUGIN_SOURCES
-            ${PLUGIN_SOURCE_DIR}/kraken_xx2/kraken_xx2.c)
+            ${KRAKEN_XX2_PLUGIN_SOURCE_DIR}/kraken_xx2.c)
 
     add_library(kraken-xx2-plugin MODULE ${KRAKEN_XX2_PLUGIN_SOURCES})
 

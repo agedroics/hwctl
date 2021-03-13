@@ -1,7 +1,4 @@
-#define _GNU_SOURCE
-
 #include <dirent.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,13 +6,11 @@
 #include <hwctl/device.h>
 #include <hwctl/loader.h>
 #include <str_util.h>
+#include <time_util.h>
+#include <heap.h>
 #include <profile.h>
 
 #define PROFILES_DIR "/etc/hwctld/profiles/"
-
-static struct profile *next_profile;
-static pthread_mutex_t next_profile_get_mutex;
-static pthread_mutex_t next_profile_set_mutex;
 
 static void print_tree(unsigned depth, int connected) {
     if (depth == 1) {
@@ -61,22 +56,20 @@ static void print_dev(const struct hwctl_dev *dev, unsigned depth) {
     putchar('\n');
 
     for (unsigned i = 0; i < vec_size(dev->subdevs); ++i) {
-        struct hwctl_dev *subdev = ((struct hwctl_dev*) vec_data(dev->subdevs)) + i;
-        print_dev(subdev, depth + 1);
+        print_dev(vec_at(dev->subdevs, i), depth + 1);
     }
 }
 
 static void det_devs(struct vec *devs) {
     for (unsigned i = 0; i < vec_size(get_hwctl_dev_dets()); ++i) {
-        struct hwctl_dev_det *dev_det = ((struct hwctl_dev_det*) vec_data(get_hwctl_dev_dets())) + i;
+        struct hwctl_dev_det *dev_det = vec_at(get_hwctl_dev_dets(), i);
         dev_det->det_devs(devs);
     }
 }
 
 static void destroy_devs(struct vec *devs) {
     for (unsigned i = 0; i < vec_size(devs); ++i) {
-        struct hwctl_dev *dev = ((struct hwctl_dev*) vec_data(devs)) + i;
-        hwctl_dev_destroy(dev);
+        hwctl_dev_destroy(vec_at(devs, i));
     }
 }
 
@@ -86,8 +79,7 @@ static void list_devices() {
     det_devs(devs);
 
     for (unsigned i = 0; i < vec_size(devs); ++i) {
-        struct hwctl_dev *dev = ((struct hwctl_dev*) vec_data(devs)) + i;
-        print_dev(dev, 0);
+        print_dev(vec_at(devs, i), 0);
     }
     putchar('\n');
 
@@ -95,35 +87,22 @@ static void list_devices() {
     vec_destroy(devs, 0);
 }
 
-static void *thread_runner(void *arg) {
-    struct profile *profile = (struct profile*) arg;
-    while (!profile_marked_for_stop(profile)) {
-        pthread_mutex_lock(&next_profile_set_mutex);
-        if (profile_marked_for_stop(profile)) {
-            next_profile = NULL;
-        } else {
-            next_profile = profile;
-        }
-        pthread_mutex_unlock(&next_profile_get_mutex);
-        struct timespec period = profile_get_period(profile);
-        if (!period.tv_nsec && !period.tv_sec) {
-            break;
-        }
-        nanosleep(&period, NULL);
-    }
-    return NULL;
+struct profile_execution {
+    struct profile profile;
+    struct timespec scheduled_time;
+};
+
+static int profile_execution_cmp(const void *a, const void *b) {
+    struct timespec *time1 = &((struct profile_execution*) a)->scheduled_time;
+    struct timespec *time2 = &((struct profile_execution*) b)->scheduled_time;
+    return time_cmp(time1, time2);
 }
 
-static void start_daemon() {
-    struct vec *devs;
-    vec_init(&devs, sizeof(struct hwctl_dev));
-    det_devs(devs);
+static void profile_executions_init(struct heap **profile_executions, const struct vec *devs) {
+    heap_init(profile_executions, sizeof(struct profile_execution), &profile_execution_cmp);
 
-    struct vec *profiles;
-    vec_init(&profiles, sizeof(struct profile*));
-
-    pthread_mutex_init(&next_profile_get_mutex, NULL);
-    pthread_mutex_init(&next_profile_set_mutex, NULL);
+    struct timespec cur_time;
+    time_nanos(&cur_time);
 
     DIR *dir = opendir(PROFILES_DIR);
     if (dir != NULL) {
@@ -135,40 +114,54 @@ static void start_daemon() {
             char *full_path = str_concat(2, PROFILES_DIR, ent->d_name);
             struct stat sb;
             if (stat(full_path, &sb) != -1 && S_ISREG(sb.st_mode)) {
-                struct profile *profile = profile_open(full_path, devs);
-                if (profile) {
-                    *((struct profile**) vec_push_back(profiles)) = profile;
-                    pthread_t thread;
-                    pthread_create(&thread, NULL, &thread_runner, profile);
-                    char thread_name[16];
-                    strncpy(thread_name, ent->d_name, 15);
-                    pthread_setname_np(thread, thread_name);
+                struct profile_execution profile_execution;
+                int error = profile_open(&profile_execution.profile, full_path, devs);
+                if (!error) {
+                    profile_execution.scheduled_time = cur_time;
+                    heap_push(*profile_executions, &profile_execution);
                 }
             }
             free(full_path);
         }
         closedir(dir);
     }
+}
 
-    while (vec_size(profiles)) {
-        pthread_mutex_lock(&next_profile_get_mutex);
-        struct profile *profile = next_profile;
-        pthread_mutex_unlock(&next_profile_set_mutex);
+static void start_daemon() {
+    struct vec *devs;
+    vec_init(&devs, sizeof(struct hwctl_dev));
+    det_devs(devs);
 
-        if (profile && profile_exec(profile)) {
-            profile_mark_for_stop(profile);
-            for (unsigned i = 0; i < vec_size(profiles); ++i) {
-                struct profile *item = ((struct profile**) vec_data(profiles))[i];
-                if (item == profile) {
-                    vec_remove(profiles, item);
-                    profile_close(profile);
-                    break;
-                }
+    struct heap *profile_executions;
+    profile_executions_init(&profile_executions, devs);
+
+    struct profile_execution execution;
+    struct timespec time;
+
+    while (!heap_pop(profile_executions, &execution)) {
+        int periodic = time_is_positive(&execution.profile.period);
+
+        if (periodic) {
+            time_nanos(&time);
+            struct timespec wait_time = time_diff(&execution.scheduled_time, &time);
+            if (time_is_positive(&wait_time)) {
+                nanosleep(&wait_time, NULL);
+                time_nanos(&time);
             }
         }
+
+        int error = profile_exec(&execution.profile);
+        if (error || !periodic) {
+            profile_close(&execution.profile);
+            continue;
+        }
+
+        time_add(&time, &execution.profile.period);
+        execution.scheduled_time = time;
+        heap_push(profile_executions, &execution);
     }
 
-    vec_destroy(profiles, 0);
+    heap_destroy(profile_executions);
     destroy_devs(devs);
     vec_destroy(devs, 0);
 }

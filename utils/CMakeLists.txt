@@ -1,11 +1,11 @@
 set(STR_UTIL_SOURCES
-        ${PROJECT_SOURCE_DIR}/util/str_util.c)
+        ${UTILS_SOURCE_DIR}/str_util.c)
 
 set(STR_UTIL_HEADERS
-        ${PROJECT_SOURCE_DIR}/util/str_util.h)
+        ${UTILS_SOURCE_DIR}/str_util.h)
 
 set(STR_UTIL_INCLUDES
-        ${PROJECT_SOURCE_DIR}/util)
+        ${UTILS_SOURCE_DIR})
 
 add_library(str_util STATIC ${STR_UTIL_SOURCES} ${STR_UTIL_HEADERS})
 
@@ -18,13 +18,13 @@ find_library(HIDAPI
 
 if(NOT HIADPI STREQUAL "HIDAPI-NOTFOUND")
     set(HID_UTIL_SOURCES
-            ${PROJECT_SOURCE_DIR}/util/hid_util.c)
+            ${UTILS_SOURCE_DIR}/hid_util.c)
 
     set(HID_UTIL_HEADERS
-            ${PROJECT_SOURCE_DIR}/util/hid_util.h)
+            ${UTILS_SOURCE_DIR}/hid_util.h)
 
     set(HID_UTIL_INCLUDES
-            ${PROJECT_SOURCE_DIR}/util)
+            ${UTILS_SOURCE_DIR})
 
     add_library(hid_util STATIC ${HID_UTIL_SOURCES} ${HID_UTIL_HEADERS})
 
@@ -38,13 +38,13 @@ endif()
 
 
 set(TIME_UTIL_SOURCES
-        ${PROJECT_SOURCE_DIR}/util/time_util.c)
+        ${UTILS_SOURCE_DIR}/time_util.c)
 
 set(TIME_UTIL_HEADERS
-        ${PROJECT_SOURCE_DIR}/util/time_util.h)
+        ${UTILS_SOURCE_DIR}/time_util.h)
 
 set(TIME_UTIL_INCLUDES
-        ${PROJECT_SOURCE_DIR}/util)
+        ${UTILS_SOURCE_DIR})
 
 add_library(time_util STATIC ${TIME_UTIL_SOURCES} ${TIME_UTIL_HEADERS})
 
