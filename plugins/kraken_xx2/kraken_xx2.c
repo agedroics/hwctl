@@ -21,7 +21,6 @@ struct dev_data {
     char *id;
     char *desc;
     char *path;
-    char *serial_number;
     hid_device *handle;
 };
 
@@ -34,7 +33,6 @@ static void dev_data_destroy(void *data) {
     free(dev_data->id);
     free(dev_data->desc);
     free(dev_data->path);
-    free(dev_data->serial_number);
     if (dev_data->handle) {
         hid_close(dev_data->handle);
     }
@@ -161,9 +159,12 @@ static void kraken_dev_init(struct hwctl_dev *dev, const struct hid_device_info 
     struct dev_data *dev_data = malloc(sizeof(struct dev_data));
     dev_data_init(dev_data);
     dev_data->id = hid_create_id(info);
-    dev_data->desc = hid_create_desc(info);
+
+    char *desc = hid_create_desc(info);
+    dev_data->desc = str_concat(3, "NZXT Kraken X (", desc, ")");
+    free(desc);
+
     dev_data->path = str_make_copy(info->path);
-    dev_data->serial_number = wstr_to_str(info->serial_number);
     dev_data->handle = NULL;
     dev->data = dev_data;
 }

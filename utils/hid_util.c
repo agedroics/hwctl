@@ -8,6 +8,9 @@
 #define FD_DIR "/proc/self/fd"
 
 char *hid_create_id(const struct hid_device_info *info) {
+    if (!info->serial_number) {
+        return str_make_copy("Could not get required info. Try running as root.");
+    }
     char *serial_number = wstr_to_str(info->serial_number);
     char *id = malloc(15 + strlen(serial_number));
     sprintf(id, "HID-%04x:%04x-%s", info->vendor_id, info->product_id, serial_number);
