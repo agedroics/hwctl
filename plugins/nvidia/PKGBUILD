@@ -1,0 +1,23 @@
+pkgname=hwctl-nvidia-plugin-git
+pkgver=1.0
+pkgrel=1
+pkgdesc="Nvidia GPU plugin for hwctl"
+arch=(x86_64)
+url="https://github.com/agedroics/hwctl"
+license=('MIT')
+depends=('hwctl' 'nvidia')
+makedepends=('git' 'cmake' 'make' 'gcc' 'cuda')
+optdepends=()
+provides=('hwctl-nvidia-plugin')
+source=('git+https://github.com/agedroics/hwctl.git')
+md5sums=(SKIP)
+
+prepare() {
+	cd "hwctl"
+	cmake -G "Unix Makefiles"
+}
+
+package() {
+	cd "hwctl/plugins/nvidia"
+	make DESTDIR="$pkgdir/" install/strip
+}

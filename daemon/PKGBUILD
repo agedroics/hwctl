@@ -1,0 +1,24 @@
+pkgname=hwctld-git
+pkgver=1.0
+pkgrel=1
+pkgdesc="Daemon for controlling various system devices"
+arch=(x86_64)
+url="https://github.com/agedroics/hwctl"
+license=('MIT')
+depends=('hwctl')
+makedepends=('git' 'cmake' 'make' 'gcc')
+optdepends=()
+provides=('hwctld')
+source=('git+https://github.com/agedroics/hwctl.git')
+md5sums=(SKIP)
+
+prepare() {
+	cd "hwctl"
+	cmake -G "Unix Makefiles"
+}
+
+package() {
+	cd "hwctl/daemon"
+	make DESTDIR="$pkgdir/" install/strip
+	install -D -m644 ../hwctld.service $pkgdir/usr/lib/systemd/system/hwctld.service
+}

@@ -189,6 +189,10 @@ int profile_exec(const struct profile *profile) {
         }
     }
 
+    if (!profile->period.tv_nsec && !profile->period.tv_sec) {
+        return 1;
+    }
+
     return 0;
 }
 

@@ -106,6 +106,9 @@ static void *thread_runner(void *arg) {
         }
         pthread_mutex_unlock(&next_profile_get_mutex);
         struct timespec period = profile_get_period(profile);
+        if (!period.tv_nsec && !period.tv_sec) {
+            break;
+        }
         nanosleep(&period, NULL);
     }
     return NULL;

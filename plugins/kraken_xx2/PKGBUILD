@@ -1,0 +1,23 @@
+pkgname=hwctl-kraken-xx2-plugin-git
+pkgver=1.0
+pkgrel=1
+pkgdesc="NZXT Kraken X plugin for hwctl"
+arch=(x86_64)
+url="https://github.com/agedroics/hwctl"
+license=('MIT')
+depends=('hwctl' 'hidapi')
+makedepends=('git' 'cmake' 'make' 'gcc' 'hidapi')
+optdepends=()
+provides=('hwctl-kraken-xx2-plugin')
+source=('git+https://github.com/agedroics/hwctl.git')
+md5sums=(SKIP)
+
+prepare() {
+	cd "hwctl"
+	cmake -G "Unix Makefiles"
+}
+
+package() {
+	cd "hwctl/plugins/kraken_xx2"
+	make DESTDIR="$pkgdir/" install/strip
+}

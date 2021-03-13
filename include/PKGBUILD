@@ -1,0 +1,23 @@
+pkgname=hwctl-headers-git
+pkgver=1.0
+pkgrel=1
+pkgdesc="Headers for hwctl"
+arch=(x86_64)
+url="https://github.com/agedroics/hwctl"
+license=('MIT')
+depends=('hwctl')
+makedepends=('git' 'cmake' 'make')
+optdepends=()
+provides=('hwctl-headers')
+source=('git+https://github.com/agedroics/hwctl.git')
+md5sums=(SKIP)
+
+prepare() {
+	cd "hwctl"
+	cmake -G "Unix Makefiles"
+}
+
+package() {
+	cd "hwctl/include"
+	make DESTDIR="$pkgdir/" install/strip
+}

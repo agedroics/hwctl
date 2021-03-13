@@ -1,0 +1,26 @@
+pkgname=hwctl-git
+pkgver=1.0
+pkgrel=1
+pkgdesc="Query and control various system devices"
+arch=(x86_64)
+url="https://github.com/agedroics/hwctl"
+license=('MIT')
+depends=()
+makedepends=('git' 'cmake' 'make' 'gcc')
+optdepends=(
+    'hwctl-kraken-xx2-plugin: NZXT Kraken X support'
+    'hwctl-nvidia-plugin: Nvidia GPU support'
+)
+provides=('hwctl')
+source=('git+https://github.com/agedroics/hwctl.git')
+md5sums=(SKIP)
+
+prepare() {
+	cd "hwctl"
+	cmake -G "Unix Makefiles"
+}
+
+package() {
+	cd "hwctl/src"
+	make DESTDIR="$pkgdir/" install/strip
+}

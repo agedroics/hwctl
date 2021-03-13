@@ -1,5 +1,5 @@
 [Unit]
-Description=Utility for querying and controlling various system devices.
+Description=Daemon for controlling various system devices
 [Service]
 Type=exec
 ExecStart=/usr/bin/hwctld
