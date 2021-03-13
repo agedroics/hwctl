@@ -35,7 +35,9 @@ static void dev_data_destroy(void *data) {
     free(dev_data->desc);
     free(dev_data->path);
     free(dev_data->serial_number);
-    hid_close(dev_data->handle);
+    if (dev_data->handle) {
+        hid_close(dev_data->handle);
+    }
     free(dev_data);
 }
 
@@ -90,7 +92,9 @@ static hid_device *get_handle(struct hwctl_dev *dev) {
 }
 
 static int reopen_device(struct dev_data *dev_data) {
-    hid_close(dev_data->handle);
+    if (dev_data->handle) {
+        hid_close(dev_data->handle);
+    }
     dev_data->handle = hid_open_path(dev_data->path);
     if (!dev_data->handle) {
         fprintf(stderr, "Failed to open HID device at path %s\n", dev_data->path);
@@ -124,6 +128,13 @@ static int read_report(struct hwctl_dev *dev, unsigned char *buffer) {
     dev = get_root(dev);
     struct dev_data *dev_data = dev->data;
 
+    if (!dev_data->handle) {
+        int result = reopen_device(dev_data);
+        if (result) {
+            return 1;
+        }
+    }
+
     unsigned fail_count = 0;
     for (;;) {
         int result = hid_read_timeout(dev_data->handle, buffer, 64, 1000);
@@ -144,7 +155,7 @@ static void base_dev_init(struct hwctl_dev *dev) {
     dev->get_desc = &get_desc;
 }
 
-static void kraken_dev_init(struct hwctl_dev *dev, const struct hid_device_info *info, hid_device *handle) {
+static void kraken_dev_init(struct hwctl_dev *dev, const struct hid_device_info *info) {
     base_dev_init(dev);
     dev->destroy_data = &dev_data_destroy;
     struct dev_data *dev_data = malloc(sizeof(struct dev_data));
@@ -153,7 +164,7 @@ static void kraken_dev_init(struct hwctl_dev *dev, const struct hid_device_info 
     dev_data->desc = hid_create_desc(info);
     dev_data->path = str_make_copy(info->path);
     dev_data->serial_number = wstr_to_str(info->serial_number);
-    dev_data->handle = handle;
+    dev_data->handle = NULL;
     dev->data = dev_data;
 }
 
@@ -207,6 +218,13 @@ static int write_duty(struct hwctl_dev *dev, uint8_t type, uint8_t duty) {
 
     dev = get_root(dev);
     struct dev_data *dev_data = dev->data;
+
+    if (!dev_data->handle) {
+        int result = reopen_device(dev_data);
+        if (result) {
+            return 1;
+        }
+    }
 
     unsigned fail_count = 0;
     for (;;) {
@@ -262,14 +280,8 @@ static void det_devs(struct vec *devs) {
     struct hid_device_info *enumeration = hid_enumerate(VENDOR_ID, PRODUCT_ID);
 
     for (struct hid_device_info *info = enumeration; info; info = info->next) {
-        hid_device *handle = hid_open_path(info->path);
-        if (!handle) {
-            fprintf(stderr, "Failed to open HID device at path %s\n", info->path);
-            continue;
-        }
-
         struct hwctl_dev *dev = vec_push_back(devs);
-        kraken_dev_init(dev, info, handle);
+        kraken_dev_init(dev, info);
 
         init_dev_liquid(vec_push_back(dev->subdevs), dev);
         init_dev_fan(vec_push_back(dev->subdevs), dev);
