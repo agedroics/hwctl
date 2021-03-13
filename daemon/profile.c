@@ -158,13 +158,15 @@ int profile_exec(const struct profile *profile) {
             } else {
                 for (unsigned i = 0; i < vec_size(profile->pairs); ++i) {
                     double *pair = vec_at(profile->pairs, i);
-                    double x0 = pair[0];
-                    if (value_in >= x0) {
-                        double *next_pair = vec_at(profile->pairs, i + 1);
-                        double y0 = pair[1];
-                        double dx = next_pair[0] - x0;
-                        double dy = next_pair[1] - y0;
-                        value_out = y0 + (value_in - x0) * dy / dx;
+                    if (value_in <= pair[0]) {
+                        double *prev_pair = vec_at(profile->pairs, i - 1);
+                        double dx = pair[0] - prev_pair[0];
+                        double dy = pair[1] - prev_pair[1];
+                        if (dx == 0) {
+                            value_out = pair[1];
+                        } else {
+                            value_out = prev_pair[1] + (value_in - prev_pair[0]) * dy / dx;
+                        }
                         value_out_exists = 1;
                         break;
                     }
