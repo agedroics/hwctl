@@ -6,11 +6,7 @@ set(LIBRARY_SOURCES
         ${LIBRARY_SOURCE_DIR}/vec.c)
 
 set(LIBRARY_HEADERS
-        ${HEADERS_SOURCE_DIR}/hwctl/device.h
-        ${HEADERS_SOURCE_DIR}/hwctl/loader.h
-        ${HEADERS_SOURCE_DIR}/hwctl/plugin.h
-        ${HEADERS_SOURCE_DIR}/hwctl/vec.h
-        ${HEADERS_SOURCE_DIR}/hwctl/export.h)
+        ${HEADERS_HEADERS})
 
 set(LIBRARY_INCLUDES ${HEADERS_SOURCE_DIR})
 
