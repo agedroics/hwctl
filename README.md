@@ -1,6 +1,5 @@
 # hwctl - system device control
 
----
 ## Supported devices
 
 * Nvidia GPUs (with nvidia plugin)
