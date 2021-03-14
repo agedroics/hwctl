@@ -16,7 +16,7 @@ target_include_directories(str_util
 find_library(HIDAPI
         NAMES hidapi libhidapi hidapi-libusb libhidapi-libusb hidapi-hidraw libhidapi-hidraw)
 
-if(NOT HIADPI STREQUAL "HIDAPI-NOTFOUND")
+if(NOT HIDAPI STREQUAL "HIDAPI-NOTFOUND")
     set(HID_UTIL_SOURCES
             ${UTILS_SOURCE_DIR}/hid_util.c)
 
