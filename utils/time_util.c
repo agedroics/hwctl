@@ -42,7 +42,7 @@ void time_subtract(struct timespec *tp, const struct timespec *amt) {
 }
 
 int time_is_positive(const struct timespec *tp) {
-    return tp->tv_sec > 0 || tp->tv_nsec > 0;
+    return tp->tv_sec > 0 || tp->tv_sec == 0 && tp->tv_nsec > 0;
 }
 
 int time_is_negative(const struct timespec *tp) {
